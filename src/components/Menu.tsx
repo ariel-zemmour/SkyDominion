@@ -18,6 +18,8 @@ export function Menu() {
   const setActiveJet = useGameStore(state => state.setActiveJet);
   const keyMap = useGameStore(state => state.keyMap);
   const setKeyMap = useGameStore(state => state.setKeyMap);
+  const completionPercentage = useGameStore(state => state.completionPercentage);
+  const mission = useGameStore(state => state.mission);
   
   const [showSettings, setShowSettings] = useState(false);
   const [showShop, setShowShop] = useState(false);
@@ -112,37 +114,72 @@ export function Menu() {
             </div>
             
             <div className="space-y-4 overflow-y-auto pr-2 custom-scrollbar flex-1">
-              {JETS.map(jet => (
-                <div key={jet.id} className="bg-white/5 p-4 rounded-xl border border-white/10 flex justify-between items-center hover:bg-white/10 transition-colors">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: jet.color }}>
-                      <Plane size={24} className="text-white mix-blend-difference" />
+              {JETS.map(jet => {
+                const isSelected = activeJet === jet.id;
+                const isBought = purchasedJets.includes(jet.id);
+                const canAfford = trophies >= jet.cost;
+                
+                return (
+                  <div key={jet.id} className={`bg-white/5 p-4 rounded-xl border transition-all ${isSelected ? 'border-green-500/50 bg-green-500/5' : 'border-white/10 hover:bg-white/10'}`}>
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-lg flex items-center justify-center shadow-lg" style={{ backgroundColor: jet.color }}>
+                          <Plane size={24} className="text-white mix-blend-difference" />
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-lg">{jet.name}</h3>
+                          <div className="flex items-center gap-2">
+                             {!isBought && (
+                               <div className="flex items-center gap-1 text-yellow-500 font-bold text-sm">
+                                 <Trophy size={14} />
+                                 {jet.cost}
+                               </div>
+                             )}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {isBought ? (
+                        <button 
+                          onClick={() => setActiveJet(jet.id)}
+                          className={`py-2 px-6 rounded-lg font-bold transition-all ${isSelected ? 'bg-green-600 text-white shadow-[0_0_15px_rgba(22,163,74,0.4)]' : 'bg-white/10 hover:bg-white/20 text-white/70'}`}
+                        >
+                          {isSelected ? (isRTL ? 'פעיל' : 'Active') : (isRTL ? 'בחר' : 'Select')}
+                        </button>
+                      ) : (
+                        <button 
+                          onClick={() => buyJet(jet.id)}
+                          disabled={!canAfford}
+                          className={`py-2 px-6 rounded-lg font-bold transition-all ${canAfford ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-[0_0_15px_rgba(37,99,235,0.4)]' : 'bg-white/5 text-white/30 cursor-not-allowed'}`}
+                        >
+                          {isRTL ? 'קנה' : 'Buy'}
+                        </button>
+                      )}
                     </div>
-                    <div>
-                      <h3 className="font-bold">{jet.name}</h3>
-                      <p className="text-xs text-white/50">
-                        {t('speed')}: {jet.speed} | {t('health')}: {jet.armor} | {isRTL ? 'נשק' : 'Wpn'}: {jet.weapons}x
-                      </p>
+
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="space-y-1">
+                        <div className="text-[10px] text-white/40 uppercase font-bold">{t('speed')}</div>
+                        <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                          <div className="h-full bg-blue-500" style={{ width: `${Math.min((jet.speed / 2200) * 100, 100)}%` }} />
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="text-[10px] text-white/40 uppercase font-bold">{t('health')}</div>
+                        <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                          <div className="h-full bg-red-500" style={{ width: `${Math.min((jet.armor / 400) * 100, 100)}%` }} />
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="text-[10px] text-white/40 uppercase font-bold">{isRTL ? 'נשק' : 'Weapon'}</div>
+                        <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                          <div className="h-full bg-yellow-500" style={{ width: `${Math.min((jet.weapons / 6) * 100, 100)}%` }} />
+                        </div>
+                      </div>
                     </div>
                   </div>
-                  {purchasedJets.includes(jet.id) ? (
-                    <button 
-                      onClick={() => setActiveJet(jet.id)}
-                      className={`py-2 px-4 rounded-lg font-medium transition-all ${activeJet === jet.id ? 'bg-green-600 text-white' : 'bg-white/10 hover:bg-white/20 text-white/70'}`}
-                    >
-                      {activeJet === jet.id ? (isRTL ? 'פעיל' : 'Active') : (isRTL ? 'בחר' : 'Select')}
-                    </button>
-                  ) : (
-                    <button 
-                      onClick={() => buyJet(jet.id)}
-                      disabled={trophies < jet.cost}
-                      className={`py-2 px-4 rounded-lg font-medium transition-all ${trophies >= jet.cost ? 'bg-blue-600 hover:bg-blue-500 text-white' : 'bg-white/5 text-white/30 cursor-not-allowed'}`}
-                    >
-                      {isRTL ? 'קנה' : 'Buy'} ({jet.cost})
-                    </button>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         ) : showControls ? (
@@ -173,9 +210,24 @@ export function Menu() {
             {gameState === 'gameover' && (
               <div className="mb-8 text-center bg-red-500/20 p-4 rounded-xl border border-red-500/30">
                 <h2 className="text-xl font-bold text-red-400 mb-2">{t('missionFailed')}</h2>
-                <div className="flex items-center justify-center gap-2 text-2xl">
-                  <Trophy size={24} className="text-yellow-500" />
-                  <span>{t('score')}: {score}</span>
+                <div className="flex flex-col items-center justify-center gap-2">
+                  <div className="flex items-center gap-2 text-2xl">
+                    <Trophy size={24} className="text-yellow-500" />
+                    <span>{t('missionCompletion')}: {completionPercentage}%</span>
+                  </div>
+                  <div className="text-sm text-white/50">{t('score')}: {score}</div>
+                </div>
+              </div>
+            )}
+
+            {completionPercentage > 0 && gameState === 'menu' && !showShop && !showSettings && !showControls && (
+              <div className="mb-8 text-center bg-green-500/20 p-4 rounded-xl border border-green-500/30">
+                <h2 className="text-xl font-bold text-green-400 mb-2">{t('missionComplete')}</h2>
+                <div className="flex flex-col items-center justify-center gap-2">
+                  <div className="flex items-center gap-2 text-3xl font-mono text-green-500">
+                    <span>{completionPercentage}%</span>
+                  </div>
+                  <div className="text-sm text-white/50">{t('score')}: {score}</div>
                 </div>
               </div>
             )}

@@ -91,8 +91,9 @@ interface GameStore {
   mission: {
     objective: string;
     completed: boolean;
+    completionPercentage: number;
   };
-  setMission: (mission: { objective: string; completed: boolean }) => void;
+  setMission: (mission: Partial<{ objective: string; completed: boolean; completionPercentage: number }>) => void;
   
   // Player stats (for UI)
   health: number;
@@ -102,6 +103,11 @@ interface GameStore {
   homingMissiles: number;
   groundMissiles: number;
   score: number;
+  shotsFired: number;
+  shotsHit: number;
+  enemiesDestroyed: number;
+  buildingsDestroyed: number;
+  completionPercentage: number;
   
   setPlayerStats: (stats: Partial<GameStore>) => void;
   
@@ -161,6 +167,7 @@ interface GameStore {
 
   resetGame: () => void;
   togglePause: () => void;
+  calculateCompletion: () => number;
 }
 
 const savedLanguage = (localStorage.getItem('language') as Language) || 'en';
@@ -170,8 +177,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   gameState: 'menu',
   setGameState: (state) => set({ gameState: state }),
   
-  mission: { objective: 'Destroy all enemy fighters', completed: false },
-  setMission: (mission) => set({ mission }),
+  mission: { objective: 'Destroy all enemy fighters', completed: false, completionPercentage: 0 },
+  setMission: (mission) => set({ mission: { ...get().mission, ...mission } }),
   
   language: savedLanguage,
   setLanguage: (lang) => {
@@ -192,8 +199,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   })),
   
   trophies: 0,
-  purchasedJets: ['basic'],
-  activeJet: 'basic',
+  purchasedJets: ['zero'],
+  activeJet: 'zero',
   buyJet: (jetId) => {
     const jet = JETS.find(j => j.id === jetId);
     if (jet && get().trophies >= jet.cost) {
@@ -204,7 +211,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
       get().saveProgress();
     }
   },
-  setActiveJet: (jetId) => set({ activeJet: jetId }),
+  setActiveJet: (jetId) => {
+    set({ activeJet: jetId });
+    get().saveProgress();
+  },
   
   keyMap: JSON.parse(localStorage.getItem('keyMap') || JSON.stringify(DEFAULT_KEY_MAP)),
   setKeyMap: (keyMap) => {
@@ -224,6 +234,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       bullets: state.bullets,
       homingMissiles: state.homingMissiles,
       groundMissiles: state.groundMissiles,
+      lastCompletion: state.completionPercentage,
     }));
   },
   
@@ -234,12 +245,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
         score: progress.score, 
         mission: progress.mission,
         trophies: progress.trophies || 0,
-        purchasedJets: progress.purchasedJets || ['basic'],
-        activeJet: progress.activeJet || 'basic',
+        purchasedJets: progress.purchasedJets || ['zero'],
+        activeJet: progress.activeJet || 'zero',
         keyMap: progress.keyMap || DEFAULT_KEY_MAP,
         bullets: progress.bullets ?? 2000,
-        homingMissiles: progress.homingMissiles ?? 5,
+        homingMissiles: progress.homingMissiles ?? 20,
         groundMissiles: progress.groundMissiles ?? 10,
+        completionPercentage: progress.lastCompletion ?? 0,
       });
     }
   },
@@ -248,9 +260,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
   speed: 0,
   altitude: 0,
   bullets: 2000,
-  homingMissiles: 5,
+  homingMissiles: 20,
   groundMissiles: 10,
   score: 0,
+  shotsFired: 0,
+  shotsHit: 0,
+  enemiesDestroyed: 0,
+  buildingsDestroyed: 0,
+  completionPercentage: 0,
   
   setPlayerStats: (stats) => set((state) => ({ ...state, ...stats })),
   
@@ -298,7 +315,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       speed: 300,
       altitude: 1000,
       bullets: 2000,
-      homingMissiles: 5,
+      homingMissiles: 20,
       groundMissiles: 10,
       score: 0,
       playerPos: new THREE.Vector3(0, 1000, 0),
@@ -309,8 +326,37 @@ export const useGameStore = create<GameStore>((set, get) => ({
       particles: [],
       buildings: [],
       lockedTargetId: null,
-      mission: { objective: 'Destroy all enemy fighters', completed: false },
+      mission: { objective: 'Destroy all enemy fighters', completed: false, completionPercentage: 0 },
+      shotsFired: 0,
+      shotsHit: 0,
+      enemiesDestroyed: 0,
+      buildingsDestroyed: 0,
     });
+  },
+  
+  calculateCompletion: () => {
+    const state = get();
+    // Requirements: Objectives completed, Accuracy, Survival/Efficiency
+    
+    // Objectives: 5 enemies initially (hardcoded in GameLogic for now)
+    const enemyScore = Math.min(state.enemiesDestroyed / 5, 1) * 60; // 60% weight
+    
+    // Accuracy:
+    const accuracy = state.shotsFired > 0 ? (state.shotsHit / state.shotsFired) : 0;
+    const accuracyScore = Math.min(accuracy * 2, 1) * 20; // 20% weight (assuming 50% accuracy is perfect)
+    
+    // Efficiency/Survival: Health remaining
+    const healthScore = (state.health / 100) * 20; // 20% weight
+    
+    const percentage = Math.round(enemyScore + accuracyScore + healthScore);
+    const finalPercentage = Math.max(1, Math.min(100, percentage));
+    
+    set(state => ({ 
+      completionPercentage: finalPercentage,
+      mission: { ...state.mission, completionPercentage: finalPercentage }
+    }));
+    
+    return finalPercentage;
   },
   
   togglePause: () => set((state) => ({
@@ -319,24 +365,24 @@ export const useGameStore = create<GameStore>((set, get) => ({
 }));
 
 export const JETS: Jet[] = [
-  { id: 'basic', name: 'F-16 Falcon', speed: 800, weapons: 1, armor: 100, cost: 0, color: '#A0A0A0', wingSpan: 6, length: 5 },
-  { id: 'advanced', name: 'F-22 Raptor', speed: 1200, weapons: 2, armor: 150, cost: 500, color: '#707070', wingSpan: 7, length: 6 },
-  { id: 'stealth', name: 'F-35 Lightning', speed: 1000, weapons: 1.5, armor: 120, cost: 1000, color: '#303030', wingSpan: 6.5, length: 5.5 },
-  { id: 'interceptor', name: 'MiG-31 Foxhound', speed: 1500, weapons: 2.5, armor: 180, cost: 2000, color: '#B0B0B0', wingSpan: 5.5, length: 7 },
-  { id: 'bomber', name: 'A-10 Warthog', speed: 600, weapons: 4, armor: 300, cost: 1500, color: '#556B2F', wingSpan: 8, length: 6 },
-  { id: 'phantom', name: 'F-4 Phantom', speed: 900, weapons: 2, armor: 140, cost: 800, color: '#808080', wingSpan: 6, length: 6.5 },
-  { id: 'tomcat', name: 'F-14 Tomcat', speed: 1100, weapons: 2.2, armor: 130, cost: 1200, color: '#909090', wingSpan: 7.5, length: 7 },
-  { id: 'eagle', name: 'F-15 Eagle', speed: 1300, weapons: 2.3, armor: 140, cost: 1800, color: '#A5A5A5', wingSpan: 6.8, length: 6.8 },
-  { id: 'hornet', name: 'F-18 Hornet', speed: 1050, weapons: 2.1, armor: 125, cost: 1100, color: '#888888', wingSpan: 6.2, length: 6.2 },
-  { id: 'viper', name: 'Su-27 Flanker', speed: 1250, weapons: 2.4, armor: 145, cost: 1900, color: '#4682B4', wingSpan: 7.2, length: 7.5 },
-  { id: 'typhoon', name: 'Eurofighter', speed: 1350, weapons: 2.6, armor: 135, cost: 2500, color: '#D3D3D3', wingSpan: 6.4, length: 6.4 },
-  { id: 'rafale', name: 'Dassault Rafale', speed: 1280, weapons: 2.5, armor: 140, cost: 2400, color: '#C0C0C0', wingSpan: 6.2, length: 6.2 },
-  { id: 'gripen', name: 'Saab Gripen', speed: 1150, weapons: 2.2, armor: 110, cost: 1600, color: '#778899', wingSpan: 5.8, length: 5.8 },
-  { id: 'thunderbolt', name: 'P-47 Thunderbolt', speed: 700, weapons: 3, armor: 250, cost: 1300, color: '#2F4F4F', wingSpan: 7.8, length: 5.5 },
-  { id: 'mustang', name: 'P-51 Mustang', speed: 750, weapons: 1.8, armor: 120, cost: 900, color: '#BDB76B', wingSpan: 6.5, length: 5.2 },
-  { id: 'spitfire', name: 'Supermarine Spitfire', speed: 720, weapons: 1.7, armor: 100, cost: 850, color: '#556B2F', wingSpan: 6.2, length: 5.1 },
-  { id: 'zero', name: 'A6M Zero', speed: 680, weapons: 1.6, armor: 80, cost: 700, color: '#F5F5DC', wingSpan: 6.8, length: 5.3 },
-  { id: 'blackbird', name: 'SR-71 Blackbird', speed: 2000, weapons: 0.5, armor: 110, cost: 5000, color: '#1A1A1A', wingSpan: 5, length: 10 },
-  { id: 'valkyrie', name: 'XB-70 Valkyrie', speed: 1800, weapons: 1, armor: 200, cost: 4500, color: '#FFFFFF', wingSpan: 9, length: 12 },
-  { id: 'prototype', name: 'X-02 Wyvern', speed: 1600, weapons: 3.5, armor: 160, cost: 4000, color: '#FF4500', wingSpan: 7.5, length: 8 },
+  { id: 'zero', name: 'A6M Zero', speed: 680, weapons: 1.0, armor: 80, cost: 0, color: '#F5F5DC', wingSpan: 6.8, length: 5.3 },
+  { id: 'spitfire', name: 'Supermarine Spitfire', speed: 720, weapons: 1.2, armor: 100, cost: 200, color: '#556B2F', wingSpan: 6.2, length: 5.1 },
+  { id: 'mustang', name: 'P-51 Mustang', speed: 750, weapons: 1.4, armor: 110, cost: 500, color: '#BDB76B', wingSpan: 6.5, length: 5.2 },
+  { id: 'thunderbolt', name: 'P-47 Thunderbolt', speed: 700, weapons: 2.5, armor: 250, cost: 1000, color: '#2F4F4F', wingSpan: 7.8, length: 5.5 },
+  { id: 'phantom', name: 'F-4 Phantom', speed: 900, weapons: 1.8, armor: 140, cost: 1800, color: '#808080', wingSpan: 6, length: 6.5 },
+  { id: 'basic', name: 'F-16 Falcon', speed: 950, weapons: 1.5, armor: 120, cost: 2500, color: '#A0A0A0', wingSpan: 6, length: 5 },
+  { id: 'hornet', name: 'F-18 Hornet', speed: 1050, weapons: 2.1, armor: 130, cost: 3500, color: '#888888', wingSpan: 6.2, length: 6.2 },
+  { id: 'gripen', name: 'Saab Gripen', speed: 1150, weapons: 2.2, armor: 115, cost: 4500, color: '#778899', wingSpan: 5.8, length: 5.8 },
+  { id: 'stealth', name: 'F-35 Lightning', speed: 1100, weapons: 2.8, armor: 160, cost: 6000, color: '#303030', wingSpan: 6.5, length: 5.5 },
+  { id: 'rafale', name: 'Dassault Rafale', speed: 1280, weapons: 2.6, armor: 145, cost: 7500, color: '#C0C0C0', wingSpan: 6.2, length: 6.2 },
+  { id: 'tomcat', name: 'F-14 Tomcat', speed: 1100, weapons: 3.0, armor: 150, cost: 9000, color: '#909090', wingSpan: 7.5, length: 7 },
+  { id: 'eagle', name: 'F-15 Eagle', speed: 1300, weapons: 3.2, armor: 155, cost: 11000, color: '#A5A5A5', wingSpan: 6.8, length: 6.8 },
+  { id: 'viper', name: 'Su-27 Flanker', speed: 1250, weapons: 3.4, armor: 160, cost: 13000, color: '#4682B4', wingSpan: 7.2, length: 7.5 },
+  { id: 'typhoon', name: 'Eurofighter', speed: 1350, weapons: 3.6, armor: 165, cost: 16000, color: '#D3D3D3', wingSpan: 6.4, length: 6.4 },
+  { id: 'interceptor', name: 'MiG-31 Foxhound', speed: 1800, weapons: 2.5, armor: 180, cost: 20000, color: '#B0B0B0', wingSpan: 5.5, length: 7 },
+  { id: 'bomber', name: 'A-10 Warthog', speed: 650, weapons: 5.0, armor: 400, cost: 25000, color: '#556B2F', wingSpan: 8, length: 6 },
+  { id: 'advanced', name: 'F-22 Raptor', speed: 1500, weapons: 4.5, armor: 200, cost: 35000, color: '#707070', wingSpan: 7, length: 6 },
+  { id: 'blackbird', name: 'SR-71 Blackbird', speed: 2200, weapons: 1.0, armor: 180, cost: 50000, color: '#1A1A1A', wingSpan: 5, length: 10 },
+  { id: 'valkyrie', name: 'XB-70 Valkyrie', speed: 2000, weapons: 2.5, armor: 300, cost: 75000, color: '#FFFFFF', wingSpan: 9, length: 12 },
+  { id: 'prototype', name: 'X-02 Wyvern', speed: 1800, weapons: 6.0, armor: 250, cost: 100000, color: '#FF4500', wingSpan: 7.5, length: 8 },
 ];

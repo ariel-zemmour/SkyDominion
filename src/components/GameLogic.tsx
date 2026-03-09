@@ -139,9 +139,13 @@ export function GameLogic() {
             });
             removeEnemy(enemy.id);
             const currentTrophies = useGameStore.getState().trophies;
+            const currentHits = useGameStore.getState().shotsHit;
+            const currentEnemies = useGameStore.getState().enemiesDestroyed;
             setPlayerStats({ 
               score: score + 100,
-              trophies: currentTrophies + 100 
+              trophies: currentTrophies + 100,
+              shotsHit: currentHits + 1,
+              enemiesDestroyed: currentEnemies + 1
             });
             saveProgress();
           }
@@ -161,7 +165,14 @@ export function GameLogic() {
                 duration: 2
               });
               useGameStore.getState().destroyBuilding(building.id);
-              setPlayerStats({ score: score + 50, trophies: useGameStore.getState().trophies + 1 });
+              const currentHits = useGameStore.getState().shotsHit;
+              const currentBuildings = useGameStore.getState().buildingsDestroyed;
+              setPlayerStats({ 
+                score: score + 50, 
+                trophies: useGameStore.getState().trophies + 1,
+                shotsHit: currentHits + 1,
+                buildingsDestroyed: currentBuildings + 1
+              });
             }
           });
         }
