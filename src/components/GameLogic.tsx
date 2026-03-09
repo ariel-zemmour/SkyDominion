@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useGameStore } from '../store';
 import { audioSynth } from '../audio';
+import { useKeyboardControls } from '@react-three/drei';
 
 export function GameLogic() {
   const gameState = useGameStore(state => state.gameState);
@@ -23,8 +24,17 @@ export function GameLogic() {
   const setLockedTargetId = useGameStore(state => state.setLockedTargetId);
   const lockedTargetId = useGameStore(state => state.lockedTargetId);
   const buildings = useGameStore(state => state.buildings);
+  const playerRot = useGameStore(state => state.playerRot);
+  const fireProjectile = useGameStore(state => state.fireProjectile);
+  const isEjected = useGameStore(state => state.isEjected);
+  const pilotPos = useGameStore(state => state.pilotPos);
 
+  const [, getKeys] = useKeyboardControls();
+  const lastWeatherChange = React.useRef(0);
   const lastSurvivalReward = React.useRef(0);
+  const lastLockSound = React.useRef(0);
+  const lastWarningSound = React.useRef(0);
+  const lockKeyWasDown = React.useRef(false);
 
   // Survival rewards logic
   useEffect(() => {
@@ -42,6 +52,62 @@ export function GameLogic() {
       const currentTrophies = useGameStore.getState().trophies;
       setPlayerStats({ trophies: currentTrophies + 50 });
       saveProgress();
+    }
+
+    // Weather change
+    if (now - lastWeatherChange.current >= 30000) {
+      lastWeatherChange.current = now;
+      const weatherTypes = ['clear', 'rain', 'storm', 'fog'] as const;
+      const type = weatherTypes[Math.floor(Math.random() * weatherTypes.length)];
+      useGameStore.getState().setWeather({ type, intensity: 0.5 });
+    }
+  });
+
+  // Landing detection on carrier
+  useFrame((state, delta) => {
+    if (gameState !== 'playing' || isEjected) return;
+    
+    const carrierPos = new THREE.Vector3(5000, 16, 5000);
+    const dist = playerPos.distanceTo(carrierPos);
+    
+    if (dist < 400) { // Near carrier
+        const speed = useGameStore.getState().speed;
+        const altitude = useGameStore.getState().altitude;
+        
+        // Relative position on deck
+        const relPos = playerPos.clone().sub(carrierPos);
+        
+        // Check if on runway (very approximate)
+        if (relPos.y > -2 && relPos.y < 5 && Math.abs(relPos.x) < 40 && Math.abs(relPos.z) < 350) {
+            if (speed < 200 && Math.abs(useGameStore.getState().playerVelocity.y) < 10) {
+                // SUCCESSFUL LANDING!
+                const currentTrophies = useGameStore.getState().trophies;
+                setPlayerStats({ 
+                  trophies: currentTrophies + 5000,
+                  score: score + 10000 
+                });
+                useGameStore.getState().setMission({ completed: true, objective: 'CARRIER LANDING SUCCESSFUL!' });
+            }
+        }
+    }
+  });
+
+  // Pilot physics after ejection
+  useFrame((state, delta) => {
+    if (!isEjected) return;
+
+    const newPilotPos = pilotPos.clone();
+    newPilotPos.y -= 10 * delta; // Fall speed
+    
+    // Slow drift
+    const winds = new THREE.Vector3(2 * Math.sin(state.clock.elapsedTime * 0.5), 0, 2 * Math.cos(state.clock.elapsedTime * 0.5));
+    newPilotPos.addScaledVector(winds, delta);
+    
+    useGameStore.setState({ pilotPos: newPilotPos });
+    
+    if (newPilotPos.y < 2) {
+        // Mission ends when pilot lands
+        useGameStore.getState().setMission({ completed: true, objective: 'MISSION ENDED: PILOT EJECTED' });
     }
   });
 
@@ -89,11 +155,14 @@ export function GameLogic() {
   useFrame((state) => {
     if (gameState !== 'playing') return;
 
-    // Target locking logic
-    let bestTarget = null;
+    // Target locking logic (triggered by key)
+    const keys = getKeys();
+    const isLockKeyDown = keys.lock;
+    
+    let bestPotentialTarget = null;
     let bestAngle = Math.PI / 8; // Max lock angle (22.5 degrees)
 
-    const playerForward = new THREE.Vector3(0, 0, -1).applyQuaternion(useGameStore.getState().playerRot);
+    const playerForward = new THREE.Vector3(0, 0, -1).applyQuaternion(playerRot);
 
     enemies.forEach(enemy => {
       const directionToEnemy = new THREE.Vector3().subVectors(enemy.position, playerPos).normalize();
@@ -102,12 +171,58 @@ export function GameLogic() {
 
       if (angle < bestAngle && dist < 10000) {
         bestAngle = angle;
-        bestTarget = enemy.id;
+        bestPotentialTarget = enemy.id;
       }
     });
 
-    if (bestTarget !== lockedTargetId) {
-      setLockedTargetId(bestTarget);
+    // Handle manual locking
+    if (isLockKeyDown && !lockKeyWasDown.current) {
+        if (bestPotentialTarget) {
+            setLockedTargetId(bestPotentialTarget);
+            audioSynth.playLocked();
+        } else {
+            setLockedTargetId(null);
+        }
+    }
+    
+    // Play lock-on tone if aiming at a potential target but not locked yet
+    if (bestPotentialTarget && bestPotentialTarget !== lockedTargetId) {
+        if (state.clock.elapsedTime - lastLockSound.current > 0.4) {
+            audioSynth.playLockOn();
+            lastLockSound.current = state.clock.elapsedTime;
+        }
+    }
+
+    lockKeyWasDown.current = isLockKeyDown;
+
+    // Enemy AI: Look for targets and fire missiles
+    enemies.forEach(enemy => {
+        const dist = enemy.position.distanceTo(playerPos);
+        if (dist < 3000 && state.clock.elapsedTime - (enemy as any).lastFired > 8) {
+             const directionToPlayer = new THREE.Vector3().subVectors(playerPos, enemy.position).normalize();
+             const enemyForward = new THREE.Vector3(0, 0, -1).applyQuaternion(enemy.rotation);
+             const angle = enemyForward.angleTo(directionToPlayer);
+             
+             if (angle < Math.PI / 4) { // Enemy can fire if player is in a 45 degree cone
+                 (enemy as any).lastFired = state.clock.elapsedTime;
+                 fireProjectile({
+                     position: enemy.position.clone().add(directionToPlayer.clone().multiplyScalar(10)),
+                     velocity: directionToPlayer.clone().multiplyScalar(1000),
+                     type: 'missile',
+                     owner: 'enemy',
+                     createdAt: state.clock.elapsedTime
+                 });
+             }
+        }
+    });
+
+    // Missile Warning System
+    const incomingMissile = projectiles.find(p => p.owner === 'enemy' && p.type === 'missile' && p.position.distanceTo(playerPos) < 2000);
+    if (incomingMissile) {
+        if (state.clock.elapsedTime - lastWarningSound.current > 0.6) {
+            audioSynth.playWarning();
+            lastWarningSound.current = state.clock.elapsedTime;
+        }
     }
 
     // Check projectiles vs enemies
@@ -141,12 +256,19 @@ export function GameLogic() {
             const currentTrophies = useGameStore.getState().trophies;
             const currentHits = useGameStore.getState().shotsHit;
             const currentEnemies = useGameStore.getState().enemiesDestroyed;
+            useGameStore.getState().addXP(100);
             setPlayerStats({ 
               score: score + 100,
               trophies: currentTrophies + 100,
               shotsHit: currentHits + 1,
               enemiesDestroyed: currentEnemies + 1
             });
+            
+            // Check for mission completion (simple version: destroy 5 enemies)
+            if (currentEnemies + 1 >= 5 && !useGameStore.getState().mission.completed) {
+                useGameStore.getState().setMission({ completed: true });
+                useGameStore.getState().advanceCareer();
+            }
             saveProgress();
           }
         });
@@ -167,6 +289,7 @@ export function GameLogic() {
               useGameStore.getState().destroyBuilding(building.id);
               const currentHits = useGameStore.getState().shotsHit;
               const currentBuildings = useGameStore.getState().buildingsDestroyed;
+              useGameStore.getState().addXP(50);
               setPlayerStats({ 
                 score: score + 50, 
                 trophies: useGameStore.getState().trophies + 1,

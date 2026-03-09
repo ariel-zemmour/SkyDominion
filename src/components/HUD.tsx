@@ -19,6 +19,11 @@ export function HUD() {
   const language = useGameStore(state => state.language);
   const projectiles = useGameStore(state => state.projectiles);
   const playerPos = useGameStore(state => state.playerPos);
+  const fuel = useGameStore(state => state.fuel);
+  const isRefueling = useGameStore(state => state.isRefueling);
+  const rank = useGameStore(state => state.rank);
+  const xp = useGameStore(state => state.xp);
+  const keyMap = useGameStore(state => state.keyMap);
 
   const isMissileIncoming = projectiles.some(p => p.type === 'missile' && p.owner === 'enemy' && p.position.distanceTo(playerPos) < 2000);
 
@@ -29,12 +34,26 @@ export function HUD() {
 
   return (
     <div className={`absolute inset-0 pointer-events-none select-none overflow-hidden font-mono text-green-500 ${isRTL ? 'dir-rtl' : 'dir-ltr'}`} dir={isRTL ? 'rtl' : 'ltr'}>
-      {/* Missile Warning */}
-      {isMissileIncoming && (
-        <div className="absolute top-1/3 left-1/2 transform -translate-x-1/2 text-red-500 text-4xl font-bold animate-pulse">
-          MISSILE INCOMING!
-        </div>
-      )}
+      {/* Top Center Warnings */}
+      <div className="absolute top-4 left-1/2 transform -translate-x-1/2 flex flex-col items-center gap-2">
+        {isMissileIncoming && (
+          <div className="flex flex-col items-center gap-1">
+             <div className="text-red-500 text-3xl font-black animate-ping">
+                <AlertTriangle size={48} />
+             </div>
+             <div className="bg-red-600 text-white px-6 py-1 text-xl font-bold rounded shadow-[0_0_20px_rgba(220,38,38,0.8)] animate-pulse">
+                {isRTL ? 'טיל מתקרב!' : 'MISSILE INCOMING!'}
+             </div>
+          </div>
+        )}
+        
+        {isRefueling && (
+          <div className="bg-blue-600 text-white px-6 py-2 text-xl font-bold rounded shadow-[0_0_20px_rgba(37,99,235,0.8)] animate-pulse flex items-center gap-2">
+             <Navigation size={24} className="animate-spin" />
+             {t('refueling')}
+          </div>
+        )}
+      </div>
 
       {/* Radar */}
       <Radar />
@@ -49,10 +68,15 @@ export function HUD() {
 
       {/* Crosshair */}
       <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-70">
-        <Crosshair size={48} strokeWidth={1} />
+        <div className={`transition-all duration-200 ${lockedTargetId ? 'scale-150 text-red-500 animate-pulse' : 'text-green-500'}`}>
+          <Crosshair size={48} strokeWidth={1} />
+        </div>
         {lockedTargetId && (
-          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-red-500 animate-pulse">
-            <Target size={64} strokeWidth={1.5} />
+          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+            <div className="w-16 h-16 border-2 border-red-600 rounded-sm rotate-45 animate-[spin_4s_linear_infinite]"></div>
+            <div className="absolute -top-6 left-1/2 -translate-x-1/2 text-xs font-bold text-red-500 tracking-widest whitespace-nowrap">
+               LOCKED
+            </div>
           </div>
         )}
       </div>
@@ -67,11 +91,33 @@ export function HUD() {
       </div>
 
       {/* Top Right: Score & Status */}
-      <div className={`absolute top-4 ${isRTL ? 'left-4 text-left' : 'right-4 text-right'} bg-black/30 p-4 rounded-lg backdrop-blur-sm border border-green-500/30`}>
-        <div className="text-2xl font-bold mb-1">{t('hudScore')}: {score.toString().padStart(6, '0')}</div>
-        <div className="text-xl font-bold mb-2 text-yellow-500">{t('trophies')}: {trophies}</div>
-        <div className={`flex items-center ${isRTL ? 'justify-start' : 'justify-end'} gap-2 text-red-500 animate-pulse`}>
-          {health < 30 && <><AlertTriangle size={20} /> {t('warningLowHull')}</>}
+      <div className={`absolute top-4 ${isRTL ? 'left-4 text-left' : 'right-4 text-right'} flex flex-col gap-2 items-end`}>
+        <div className="bg-black/30 p-4 rounded-lg backdrop-blur-sm border border-green-500/30">
+            <div className="text-2xl font-bold mb-1">{t('hudScore')}: {score.toString().padStart(6, '0')}</div>
+            <div className="text-xl font-bold mb-1 text-yellow-500">{t('trophies')}: {trophies}</div>
+            <div className="text-lg font-bold text-blue-400">{t('rank')}: {rank} ({xp} XP)</div>
+            <div className={`flex items-center ${isRTL ? 'justify-start' : 'justify-end'} gap-2 text-red-500 animate-pulse mt-2`}>
+              {health < 30 && <><AlertTriangle size={20} /> {t('warningLowHull')}</>}
+            </div>
+            {health < 25 && (
+                <div className="mt-2 text-center font-bold text-red-500 text-xl border-t border-red-500/20 pt-2">
+                    {t('eject').toUpperCase()} [{keyMap.eject.replace('Key', '')}]
+                </div>
+            )}
+        </div>
+        
+        {/* Fuel Gauge */}
+        <div className="bg-black/30 p-3 rounded-lg backdrop-blur-sm border border-green-500/30 w-48">
+            <div className="flex justify-between items-center mb-1">
+                <span className="text-xs opacity-70">{t('fuel')}</span>
+                <span className={`text-sm font-bold ${fuel < 20 ? 'text-red-500 animate-pulse' : 'text-green-500'}`}>{Math.round(fuel)}%</span>
+            </div>
+            <div className="w-full h-2 bg-gray-800 rounded overflow-hidden">
+                <div 
+                  className={`h-full transition-all duration-300 ${fuel > 50 ? 'bg-green-500' : fuel > 20 ? 'bg-yellow-500' : 'bg-red-500'}`} 
+                  style={{ width: `${fuel}%` }}
+                ></div>
+            </div>
         </div>
       </div>
 

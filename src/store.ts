@@ -65,6 +65,8 @@ export interface KeyMapping {
   fireHoming: string;
   fireGround: string;
   camera: string;
+  lock: string;
+  eject: string;
 }
 
 const DEFAULT_KEY_MAP: KeyMapping = {
@@ -81,6 +83,8 @@ const DEFAULT_KEY_MAP: KeyMapping = {
   fireHoming: 'Space',
   fireGround: 'KeyG',
   camera: 'KeyC',
+  lock: 'KeyT',
+  eject: 'KeyE',
 };
 
 interface GameStore {
@@ -108,6 +112,13 @@ interface GameStore {
   enemiesDestroyed: number;
   buildingsDestroyed: number;
   completionPercentage: number;
+  
+  // Progress & Fuel
+  xp: number;
+  rank: string;
+  fuel: number;
+  isRefueling: boolean;
+  careerProgress: number; // Current mission index
   
   setPlayerStats: (stats: Partial<GameStore>) => void;
   
@@ -146,6 +157,11 @@ interface GameStore {
   };
   setVolume: (volume: number) => void;
   
+  addXP: (amount: number) => void;
+  setFuel: (amount: number) => void;
+  setRefueling: (status: boolean) => void;
+  advanceCareer: () => void;
+  
   // Buildings
   buildings: Building[];
   destroyBuilding: (id: string) => void;
@@ -156,6 +172,20 @@ interface GameStore {
   activeJet: string;
   buyJet: (jetId: string) => void;
   setActiveJet: (jetId: string) => void;
+  
+  // Weather
+  weather: {
+    type: 'clear' | 'rain' | 'storm' | 'fog';
+    intensity: number;
+  };
+  setWeather: (weather: GameStore['weather']) => void;
+
+  // Ejection
+  isEjected: boolean;
+  setIsEjected: (isEjected: boolean) => void;
+  pilotPos: THREE.Vector3;
+  jetStatus: 'normal' | 'crashing' | 'hidden';
+  setJetStatus: (status: 'normal' | 'crashing' | 'hidden') => void;
   
   // Key Mapping
   keyMap: KeyMapping;
@@ -269,6 +299,21 @@ export const useGameStore = create<GameStore>((set, get) => ({
   buildingsDestroyed: 0,
   completionPercentage: 0,
   
+  xp: 0,
+  rank: 'Recruit',
+  fuel: 100,
+  isRefueling: false,
+  careerProgress: 0,
+  
+  weather: { type: 'clear', intensity: 0 },
+  setWeather: (weather) => set({ weather }),
+  
+  isEjected: false,
+  pilotPos: new THREE.Vector3(),
+  jetStatus: 'normal',
+  setJetStatus: (jetStatus) => set({ jetStatus }),
+  setIsEjected: (isEjected) => set({ isEjected }),
+  
   setPlayerStats: (stats) => set((state) => ({ ...state, ...stats })),
   
   playerPos: new THREE.Vector3(0, 1000, 0),
@@ -318,50 +363,65 @@ export const useGameStore = create<GameStore>((set, get) => ({
       homingMissiles: 20,
       groundMissiles: 10,
       score: 0,
+      xp: get().xp,
+      rank: get().rank,
+      fuel: 100,
+      isRefueling: false,
+      careerProgress: get().careerProgress,
+      weather: { type: 'clear', intensity: 0 },
+      enemiesDestroyed: 0,
+      buildingsDestroyed: 0,
+      shotsFired: 0,
+      shotsHit: 0,
+      completionPercentage: 0,
+      isEjected: false,
+      jetStatus: 'normal',
+      pilotPos: new THREE.Vector3(),
       playerPos: new THREE.Vector3(0, 1000, 0),
       playerRot: new THREE.Quaternion(),
       playerVelocity: new THREE.Vector3(),
       enemies: [],
       projectiles: [],
       particles: [],
-      buildings: [],
       lockedTargetId: null,
-      mission: { objective: 'Destroy all enemy fighters', completed: false, completionPercentage: 0 },
-      shotsFired: 0,
-      shotsHit: 0,
-      enemiesDestroyed: 0,
-      buildingsDestroyed: 0,
+      mission: { ...get().mission, completed: false, completionPercentage: 0 },
+      buildings: get().buildings.length > 0 ? get().buildings : [
+        { id: '1', position: new THREE.Vector3(500, 0, -500), health: 100 },
+        { id: '2', position: new THREE.Vector3(-500, 0, -800), health: 100 },
+        { id: '3', position: new THREE.Vector3(0, 0, -1200), health: 100 },
+      ],
     });
   },
   
   calculateCompletion: () => {
-    const state = get();
-    // Requirements: Objectives completed, Accuracy, Survival/Efficiency
+    const stats = get();
+    const accuracy = stats.shotsFired > 0 ? (stats.shotsHit / stats.shotsFired) * 100 : 0;
+    const enemyProgress = (stats.enemiesDestroyed / 10) * 100; // Assume 10 enemies per mission goal
+    const buildingProgress = (stats.buildingsDestroyed / 20) * 100;
+    const healthBonus = stats.health / 2;
     
-    // Objectives: 5 enemies initially (hardcoded in GameLogic for now)
-    const enemyScore = Math.min(state.enemiesDestroyed / 5, 1) * 60; // 60% weight
-    
-    // Accuracy:
-    const accuracy = state.shotsFired > 0 ? (state.shotsHit / state.shotsFired) : 0;
-    const accuracyScore = Math.min(accuracy * 2, 1) * 20; // 20% weight (assuming 50% accuracy is perfect)
-    
-    // Efficiency/Survival: Health remaining
-    const healthScore = (state.health / 100) * 20; // 20% weight
-    
-    const percentage = Math.round(enemyScore + accuracyScore + healthScore);
-    const finalPercentage = Math.max(1, Math.min(100, percentage));
-    
+    const percentage = Math.min(Math.round((accuracy + enemyProgress + buildingProgress + healthBonus) / 3), 100);
+
     set(state => ({ 
-      completionPercentage: finalPercentage,
-      mission: { ...state.mission, completionPercentage: finalPercentage }
+      completionPercentage: percentage,
+      mission: { ...state.mission, completionPercentage: percentage }
     }));
     
-    return finalPercentage;
+    return percentage;
   },
+
+  addXP: (amount) => {
+    const newXP = get().xp + amount;
+    const ranks = ['Recruit', 'Private', 'Sergeant', 'Lieutenant', 'Captain', 'Major', 'Colonel', 'General', 'Ace'];
+    const rankIndex = Math.min(Math.floor(newXP / 1000), ranks.length - 1);
+    set({ xp: newXP, rank: ranks[rankIndex] });
+  },
+
+  setFuel: (amount) => set({ fuel: Math.max(0, Math.min(100, amount)) }),
+  setRefueling: (isRefueling) => set({ isRefueling }),
+  advanceCareer: () => set({ careerProgress: get().careerProgress + 1 }),
   
-  togglePause: () => set((state) => ({
-    gameState: state.gameState === 'playing' ? 'paused' : (state.gameState === 'paused' ? 'playing' : state.gameState)
-  }))
+  togglePause: () => set({ gameState: get().gameState === 'playing' ? 'paused' : 'playing' })
 }));
 
 export const JETS: Jet[] = [

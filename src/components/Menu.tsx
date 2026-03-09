@@ -24,7 +24,12 @@ export function Menu() {
   const [showSettings, setShowSettings] = useState(false);
   const [showShop, setShowShop] = useState(false);
   const [showControls, setShowControls] = useState(false);
+  const [showCareer, setShowCareer] = useState(false);
   const [rebindingKey, setRebindingKey] = useState<keyof KeyMapping | null>(null);
+  
+  const rank = useGameStore(state => state.rank);
+  const xp = useGameStore(state => state.xp);
+  const careerProgress = useGameStore(state => state.careerProgress);
 
   useEffect(() => {
     if (!rebindingKey) return;
@@ -66,7 +71,21 @@ export function Menu() {
         </div>
         
         <h1 className="text-4xl font-bold text-center mb-2 tracking-tight">ACE STRIKE</h1>
-        <p className="text-center text-white/50 mb-8">{t('browserSimulator')}</p>
+        <p className="text-center text-white/50 mb-4">{t('browserSimulator')}</p>
+        
+        {!showSettings && !showShop && !showControls && !showCareer && (
+          <div className="flex justify-center gap-4 mb-8 bg-blue-500/10 py-2 rounded-xl border border-blue-500/20">
+             <div className="text-center">
+                <div className="text-[10px] uppercase text-blue-400 font-bold">{t('rank')}</div>
+                <div className="text-lg font-bold">{rank}</div>
+             </div>
+             <div className="w-[1px] bg-blue-500/20" />
+             <div className="text-center">
+                <div className="text-[10px] uppercase text-blue-400 font-bold">{t('xp')}</div>
+                <div className="text-lg font-bold">{xp}</div>
+             </div>
+          </div>
+        )}
 
         {showSettings ? (
           <div className="space-y-6">
@@ -205,6 +224,56 @@ export function Menu() {
               ))}
             </div>
           </div>
+        ) : showCareer ? (
+          <div className="space-y-6">
+            <div className="flex items-center gap-3 mb-4">
+              <button onClick={() => setShowCareer(false)} className="p-2 hover:bg-white/10 rounded-full transition-colors">
+                <ArrowLeft size={24} className={isRTL ? 'rotate-180' : ''} />
+              </button>
+              <h2 className="text-2xl font-bold">{t('careerMode')}</h2>
+            </div>
+            
+            <div className="space-y-3">
+              {[...Array(5)].map((_, i) => {
+                  const isUnlocked = i <= careerProgress;
+                  const isCompleted = i < careerProgress;
+                  const missionNames = ['Patrol', 'Intercept', 'Deep Strike', 'Carrier Ops', 'Final Ace'];
+                  const missionNamesHe = ['פיטרול', 'יירוט', 'תקיפה עמוקה', 'פעולות נושאת מטוסים', 'אלוף סופי'];
+                  
+                  return (
+                    <button 
+                      key={i}
+                      disabled={!isUnlocked}
+                      onClick={() => {
+                          useGameStore.getState().setMission({ 
+                              objective: isRTL ? `משימה ${i + 1}: ${missionNamesHe[i]}` : `Mission ${i + 1}: ${missionNames[i]}`,
+                              completed: false,
+                              completionPercentage: 0
+                          });
+                          setShowCareer(false);
+                          handleStart();
+                      }}
+                      className={`w-full p-4 rounded-xl border flex items-center justify-between transition-all ${isUnlocked ? 'bg-white/5 border-white/10 hover:border-blue-500/50 hover:bg-blue-500/5' : 'bg-white/5 border-white/5 opacity-30 cursor-not-allowed'}`}
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${isCompleted ? 'bg-green-600' : isUnlocked ? 'bg-blue-600' : 'bg-white/10'}`}>
+                          {i + 1}
+                        </div>
+                        <div className="text-left">
+                          <div className={`font-bold ${isUnlocked ? 'text-white' : 'text-white/50'}`}>
+                              {isRTL ? missionNamesHe[i] : missionNames[i]}
+                          </div>
+                          <div className="text-xs text-white/30">
+                              {isRTL ? `משימה ${i + 1}` : `Mission ${i + 1}`}
+                          </div>
+                        </div>
+                      </div>
+                      {isCompleted && <Trophy size={18} className="text-yellow-500" />}
+                    </button>
+                  );
+              })}
+            </div>
+          </div>
         ) : (
           <>
             {gameState === 'gameover' && (
@@ -241,6 +310,11 @@ export function Menu() {
               <button onClick={() => setShowSettings(true)} className="w-full py-4 bg-white/10 hover:bg-white/20 text-white rounded-xl font-bold text-lg transition-all flex items-center justify-center gap-2">
                 <Settings size={24} />
                 {t('settings')}
+              </button>
+              
+              <button onClick={() => setShowCareer(true)} className="w-full py-4 bg-white/10 hover:bg-white/20 text-white rounded-xl font-bold text-lg transition-all flex items-center justify-center gap-2">
+                <Trophy size={24} />
+                {t('careerMode')}
               </button>
               
               <button onClick={() => setShowShop(true)} className="w-full py-4 bg-white/10 hover:bg-white/20 text-white rounded-xl font-bold text-lg transition-all flex items-center justify-center gap-2">

@@ -36,6 +36,8 @@ export function Game() {
     { name: 'fireHoming', keys: [keyMap.fireHoming] },
     { name: 'fireGround', keys: [keyMap.fireGround] },
     { name: 'camera', keys: [keyMap.camera] },
+    { name: 'lock', keys: [keyMap.lock] },
+    { name: 'eject', keys: [keyMap.eject] },
   ];
 
   useEffect(() => {
