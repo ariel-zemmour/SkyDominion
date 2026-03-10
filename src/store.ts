@@ -196,6 +196,9 @@ interface GameStore {
   isEjected: boolean;
   setIsEjected: (isEjected: boolean) => void;
   pilotPos: THREE.Vector3;
+  pilotVelocityY: number;
+  ejectionTime: number;
+  parachuteDeployed: boolean;
   jetStatus: 'normal' | 'crashing' | 'hidden';
   setJetStatus: (status: 'normal' | 'crashing' | 'hidden') => void;
   
@@ -334,6 +337,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
   
   isEjected: false,
   pilotPos: new THREE.Vector3(),
+  pilotVelocityY: 0,
+  ejectionTime: 0,
+  parachuteDeployed: false,
   jetStatus: 'normal',
   setJetStatus: (jetStatus) => set({ jetStatus }),
   setIsEjected: (isEjected) => set({ isEjected }),
@@ -421,6 +427,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
       rifleAmmo: 120,
       pilotYaw: 0,
       pilotPitch: 0,
+      pilotVelocityY: 0,
+      ejectionTime: 0,
+      parachuteDeployed: false,
       soldiers: [],
       soldiersDestroyed: 0,
       jetStatus: 'normal',

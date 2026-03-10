@@ -201,8 +201,16 @@ export function Player() {
     if (eject && !isEjected) {
         setIsEjected(true);
         setJetStatus('crashing');
-        useGameStore.setState({ pilotPos: group.current.position.clone().add(new THREE.Vector3(0, 2, 0)) });
+        // Launch pilot upward from jet with ejection seat impulse
+        useGameStore.setState({ 
+          pilotPos: group.current.position.clone().add(new THREE.Vector3(0, 5, 0)),
+          pilotVelocityY: 40, // Strong upward ejection impulse
+          ejectionTime: state.clock.elapsedTime,
+          parachuteDeployed: false,
+          isOnGround: false,
+        });
         audioSynth.playExplosion();
+        audioSynth.stopEngine();
     }
 
     // Throttle

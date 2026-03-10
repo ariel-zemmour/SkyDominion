@@ -29,6 +29,7 @@ export function HUD() {
   const rifleAmmo = useGameStore(state => state.rifleAmmo);
   const soldiersDestroyed = useGameStore(state => state.soldiersDestroyed);
   const soldiers = useGameStore(state => state.soldiers);
+  const parachuteDeployed = useGameStore(state => state.parachuteDeployed);
 
   const isMissileIncoming = projectiles.some(p => p.type === 'missile' && p.owner === 'enemy' && p.position.distanceTo(playerPos) < 2000);
 
@@ -191,14 +192,21 @@ export function HUD() {
       {isEjected && (
         <>
           {/* Status banner */}
-          <div className="absolute top-4 left-1/2 transform -translate-x-1/2">
+          <div className="absolute top-4 left-1/2 transform -translate-x-1/2 flex flex-col items-center gap-2">
             <div className={`px-6 py-2 rounded-lg font-bold text-lg tracking-widest border backdrop-blur-sm ${
               isOnGround 
                 ? 'bg-orange-600/30 border-orange-500/50 text-orange-300 shadow-[0_0_20px_rgba(234,88,12,0.3)]' 
-                : 'bg-blue-600/30 border-blue-500/50 text-blue-300 shadow-[0_0_20px_rgba(59,130,246,0.3)] animate-pulse'
+                : parachuteDeployed
+                  ? 'bg-blue-600/30 border-blue-500/50 text-blue-300 shadow-[0_0_20px_rgba(59,130,246,0.3)] animate-pulse'
+                  : 'bg-red-600/40 border-red-500/60 text-red-300 shadow-[0_0_20px_rgba(220,38,38,0.5)] animate-pulse'
             }`}>
-              {isOnGround ? t('groundCombat') : t('parachuting')}
+              {isOnGround ? t('groundCombat') : parachuteDeployed ? t('parachuting') : 'EJECTING!'}
             </div>
+            {!isOnGround && (
+              <div className="text-sm font-mono text-blue-300/70">
+                {t('hudAlt')}: {Math.round(altitude)} {t('ft')}
+              </div>
+            )}
           </div>
 
           {/* Ground combat stats */}
