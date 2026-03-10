@@ -14,6 +14,7 @@ import { MissionSystem } from './MissionSystem';
 import { MobileControls } from './MobileControls';
 import { GroundCombat } from './GroundCombat';
 import { EnemySoldiers } from './EnemySoldiers';
+import { RescueHelicopter } from './RescueHelicopter';
 import { useGameStore } from '../store';
 
 import { GameLogic } from './GameLogic';
@@ -41,6 +42,7 @@ export function Game() {
     { name: 'camera', keys: [keyMap.camera] },
     { name: 'lock', keys: [keyMap.lock] },
     { name: 'eject', keys: [keyMap.eject] },
+    { name: 'callRescue', keys: [keyMap.callRescue] },
   ];
 
   useEffect(() => {
@@ -74,6 +76,7 @@ export function Game() {
             <GameLogic />
             <GroundCombat />
             <EnemySoldiers />
+            <RescueHelicopter />
           </Suspense>
         </Canvas>
         <HUD />

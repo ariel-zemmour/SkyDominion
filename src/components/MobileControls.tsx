@@ -220,6 +220,10 @@ export function MobileControls() {
   const fireGround = useMobileStore((s) => s.fireGround);
   const shift = useMobileStore((s) => s.shift);
   const isMobile = useMobileStore((s) => s.isMobile);
+  const isEjected = useGameStore((s) => s.isEjected);
+  const parachuteDeployed = useGameStore((s) => s.parachuteDeployed);
+  const isRescueCalled = useGameStore((s) => s.isRescueCalled);
+  const isOnGround = useGameStore((s) => s.isOnGround);
 
   const { toggleGyro, recalibrate, gyroEnabled } = useGyroscope();
 
@@ -354,17 +358,31 @@ export function MobileControls() {
           </button>
         )}
 
-        <button
-          className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-mono uppercase tracking-wider border border-red-500/40 bg-black/40 text-red-400 touch-none"
-          onTouchStart={(e) => {
-            e.preventDefault();
-            setInput({ eject: true });
-            setTimeout(() => setInput({ eject: false }), 300);
-          }}
-        >
-          <ArrowUpFromLine size={14} />
-          EJECT
-        </button>
+        {/* Eject / Rescue Button */}
+        {!isEjected ? (
+          <button
+            className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-mono uppercase tracking-wider border border-red-500/40 bg-black/40 text-red-400 touch-none"
+            onTouchStart={(e) => {
+              e.preventDefault();
+              setInput({ eject: true });
+              setTimeout(() => setInput({ eject: false }), 300);
+            }}
+          >
+            <ArrowUpFromLine size={14} />
+            EJECT
+          </button>
+        ) : (parachuteDeployed || isOnGround) && isEjected && !isRescueCalled ? (
+          <button
+            className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-mono uppercase tracking-wider border border-red-500/40 bg-black/40 text-red-400 touch-none animate-pulse"
+            onTouchStart={(e) => {
+              e.preventDefault();
+              setInput({ callRescue: true });
+              setTimeout(() => setInput({ callRescue: false }), 300);
+            }}
+          >
+            🆘 SOS
+          </button>
+        ) : null}
       </div>
 
       {/* Gyro Indicator */}

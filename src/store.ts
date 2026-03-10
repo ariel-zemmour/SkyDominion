@@ -79,6 +79,7 @@ export interface KeyMapping {
   camera: string;
   lock: string;
   eject: string;
+  callRescue: string;
 }
 
 const DEFAULT_KEY_MAP: KeyMapping = {
@@ -97,6 +98,7 @@ const DEFAULT_KEY_MAP: KeyMapping = {
   camera: 'KeyC',
   lock: 'KeyT',
   eject: 'KeyE',
+  callRescue: 'KeyR',
 };
 
 interface GameStore {
@@ -205,6 +207,14 @@ interface GameStore {
   // Ground combat
   isOnGround: boolean;
   setIsOnGround: (val: boolean) => void;
+  isRescueCalled: boolean;
+  setIsRescueCalled: (called: boolean) => void;
+  rescueState: 'none' | 'incoming' | 'hovering' | 'lifting' | 'toHangar' | 'landing' | 'repairing' | 'repaired';
+  setRescueState: (state: GameStore['rescueState']) => void;
+  repairProgress: number;
+  sosFired: boolean;
+  rescuePoints: number;
+  setRescuePoints: (points: number) => void;
   rifleAmmo: number;
   pilotYaw: number;
   pilotPitch: number;
@@ -346,6 +356,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
   
   // Ground combat
   isOnGround: false,
+  isRescueCalled: false,
+  setIsRescueCalled: (isRescueCalled) => set({ isRescueCalled }),
+  rescueState: 'none',
+  setRescueState: (rescueState) => set({ rescueState }),
+  repairProgress: 0,
+  sosFired: false,
+  rescuePoints: 0,
+  setRescuePoints: (rescuePoints) => set({ rescuePoints }),
   setIsOnGround: (isOnGround) => set({ isOnGround }),
   rifleAmmo: 120,
   pilotYaw: 0,
@@ -424,6 +442,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
       completionPercentage: 0,
       isEjected: false,
       isOnGround: false,
+      isRescueCalled: false,
+      rescueState: 'none',
+      repairProgress: 0,
+      sosFired: false,
+      rescuePoints: 0,
       rifleAmmo: 120,
       pilotYaw: 0,
       pilotPitch: 0,

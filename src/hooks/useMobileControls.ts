@@ -18,6 +18,7 @@ export interface MobileInputState {
   camera: boolean;
   lock: boolean;
   eject: boolean;
+  callRescue: boolean;
 
   // Gyroscope
   gyroEnabled: boolean;
@@ -40,6 +41,7 @@ const defaultState: MobileInputState = {
   camera: false,
   lock: false,
   eject: false,
+  callRescue: false,
   gyroEnabled: false,
   gyroPitch: 0,
   gyroRoll: 0,

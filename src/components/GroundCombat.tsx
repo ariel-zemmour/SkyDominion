@@ -49,6 +49,16 @@ function PilotController() {
     const groundLevel = terrainHeight + 1.8; // Eye height
 
     // ──────────────────────────────────────────────────────
+    //  SEND SOS SIGNAL
+    // ──────────────────────────────────────────────────────
+    if ((keys.callRescue || mobile.callRescue) && !store.isRescueCalled && (store.parachuteDeployed || store.isOnGround)) {
+      useGameStore.setState({ isRescueCalled: true, rescueState: 'incoming', sosFired: true });
+    }
+
+    // Skip normal falling/ground movement if helicopter is transporting us
+    if (['lifting', 'toHangar', 'landing', 'repairing', 'repaired'].includes(store.rescueState)) return;
+
+    // ──────────────────────────────────────────────────────
     //  FALLING / PARACHUTE PHASE
     // ──────────────────────────────────────────────────────
     if (!isOnGround) {

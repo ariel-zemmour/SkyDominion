@@ -30,6 +30,9 @@ export function HUD() {
   const soldiersDestroyed = useGameStore(state => state.soldiersDestroyed);
   const soldiers = useGameStore(state => state.soldiers);
   const parachuteDeployed = useGameStore(state => state.parachuteDeployed);
+  const isRescueCalled = useGameStore(state => state.isRescueCalled);
+  const rescueState = useGameStore(state => state.rescueState);
+  const repairProgress = useGameStore(state => state.repairProgress);
 
   const isMissileIncoming = projectiles.some(p => p.type === 'missile' && p.owner === 'enemy' && p.position.distanceTo(playerPos) < 2000);
 
@@ -205,6 +208,42 @@ export function HUD() {
             {!isOnGround && (
               <div className="text-sm font-mono text-blue-300/70">
                 {t('hudAlt')}: {Math.round(altitude)} {t('ft')}
+              </div>
+            )}
+            
+            {/* SOS / Rescue Status */}
+            {(parachuteDeployed || isOnGround) && (
+              <div className="mt-4 flex flex-col items-center">
+                {!isRescueCalled ? (
+                  <div className="bg-red-600/30 border border-red-500/50 text-red-300 px-4 py-2 rounded shadow-[0_0_15px_rgba(220,38,38,0.4)] animate-pulse flex items-center gap-2">
+                    <span className="font-bold border border-red-400/50 rounded px-1.5 py-0.5 text-xs">{keyMap.callRescue.replace('Key', '')}</span>
+                    <span>🆘 {t('callRescue')}</span>
+                  </div>
+                ) : (
+                  <div className="bg-blue-600/30 border border-blue-500/50 text-blue-300 px-4 py-2 rounded font-bold shadow-[0_0_15px_rgba(59,130,246,0.5)] flex flex-col items-center gap-2">
+                    <div className="flex items-center gap-2">
+                      {rescueState === 'incoming' && '🚁 ' + t('rescueIncoming')}
+                      {rescueState === 'hovering' && '🪢 GRAB ROPE!'}
+                      {rescueState === 'lifting' && '🚁 ' + t('rescued')}
+                      {rescueState === 'toHangar' && '🚁 ' + t('flyingToHangar')}
+                      {rescueState === 'landing' && '🚁 Landing...'}
+                      {rescueState === 'repairing' && '🔧 ' + t('repairing')}
+                      {rescueState === 'repaired' && '✅ ' + t('repaired')}
+                    </div>
+                    {/* Repair progress bar */}
+                    {rescueState === 'repairing' && (
+                      <div className="w-48">
+                        <div className="w-full h-2.5 bg-gray-800 rounded overflow-hidden border border-blue-500/30">
+                          <div
+                            className="h-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all duration-300"
+                            style={{ width: `${repairProgress}%` }}
+                          />
+                        </div>
+                        <div className="text-xs text-center mt-1 text-cyan-300/70">{Math.round(repairProgress)}%</div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>

@@ -74,6 +74,13 @@ export const translations = {
     groundCombat: 'GROUND COMBAT',
     parachuting: 'PARACHUTING',
     landed: 'ON GROUND',
+    callRescue: 'Send SOS Signal',
+    rescueIncoming: 'Rescue helicopter incoming...',
+    rescued: 'RESCUED!',
+    flyingToHangar: 'Flying to hangar...',
+    repairing: 'Mechanic repairing jet...',
+    repaired: 'Jet repaired! Ready to take off!',
+    sosSignal: 'SOS Signal Sent!',
   },
   he: {
     mainMenu: 'תפריט ראשי',
@@ -147,6 +154,13 @@ export const translations = {
     groundCombat: 'לחימה קרקעית',
     parachuting: 'צניחה',
     landed: 'על הקרקע',
+    callRescue: 'שלח אות מצוקה SOS',
+    rescueIncoming: 'מסוק חילוץ בדרך...',
+    rescued: 'חולצת!',
+    flyingToHangar: 'טס להנגר...',
+    repairing: 'מכונאי מתקן את המטוס...',
+    repaired: 'המטוס תוקן! מוכן להמראה!',
+    sosSignal: 'אות מצוקה SOS נשלחה!',
   }
 };
 
