@@ -6,6 +6,7 @@ import { useGameStore, JETS } from '../store';
 
 import { audioSynth } from '../audio';
 import { getTerrainHeight } from '../utils/terrain';
+import { useMobileStore } from '../hooks/useMobileControls';
 
 const MAX_SPEED = 800;
 const MIN_SPEED = 150;
@@ -91,7 +92,23 @@ export function Player() {
     }
 
     const keys = get();
-    const { forward, backward, yawLeft, yawRight, pitchUp, pitchDown, rollLeft, rollRight, shift, camera, fireBullets, fireHoming, fireGround, eject } = keys;
+    const mobile = useMobileStore.getState();
+
+    // Merge keyboard + mobile inputs
+    const forward = keys.forward || mobile.moveY > 0.3;
+    const backward = keys.backward || mobile.moveY < -0.3;
+    const yawLeft = keys.yawLeft || mobile.moveX < -0.3;
+    const yawRight = keys.yawRight || mobile.moveX > 0.3;
+    const pitchUp = keys.pitchUp || mobile.aimY > 0.3 || (mobile.gyroEnabled && mobile.gyroPitch > 0.15);
+    const pitchDown = keys.pitchDown || mobile.aimY < -0.3 || (mobile.gyroEnabled && mobile.gyroPitch < -0.15);
+    const rollLeft = keys.rollLeft || mobile.aimX < -0.3 || (mobile.gyroEnabled && mobile.gyroRoll < -0.15);
+    const rollRight = keys.rollRight || mobile.aimX > 0.3 || (mobile.gyroEnabled && mobile.gyroRoll > 0.15);
+    const shift = keys.shift || mobile.shift;
+    const camera = keys.camera || mobile.camera;
+    const fireBullets = keys.fireBullets || mobile.fireBullets;
+    const fireHoming = keys.fireHoming || mobile.fireHoming;
+    const fireGround = keys.fireGround || mobile.fireGround;
+    const eject = keys.eject || mobile.eject;
 
     if (camera && state.clock.elapsedTime - lastCameraToggle.current > 0.5) {
       lastCameraToggle.current = state.clock.elapsedTime;
@@ -199,10 +216,25 @@ export function Player() {
     
     audioSynth.setEngineSpeed((speed.current - MIN_SPEED) / (activeJet.speed * AFTERBURNER_MULTIPLIER - MIN_SPEED));
 
-    // Rotation
-    const pitchInput = (get().pitchUp ? 1 : 0) - (get().pitchDown ? 1 : 0);
-    const rollInput = (get().rollRight ? 1 : 0) - (get().rollLeft ? 1 : 0);
-    const yawInput = (get().yawRight ? 1 : 0) - (get().yawLeft ? 1 : 0);
+    // Rotation — blend keyboard boolean + mobile analog
+    let pitchInput = (pitchUp ? 1 : 0) - (pitchDown ? 1 : 0);
+    let rollInput = (rollRight ? 1 : 0) - (rollLeft ? 1 : 0);
+    let yawInput = (yawRight ? 1 : 0) - (yawLeft ? 1 : 0);
+
+    // On mobile, use analog values for smoother control
+    if (mobile.isMobile) {
+      // Right joystick analog
+      if (Math.abs(mobile.aimY) > 0.05) pitchInput = mobile.aimY;
+      if (Math.abs(mobile.aimX) > 0.05) rollInput = mobile.aimX;
+      // Left joystick analog for yaw
+      if (Math.abs(mobile.moveX) > 0.05) yawInput = mobile.moveX;
+
+      // Blend gyroscope on top
+      if (mobile.gyroEnabled) {
+        pitchInput = Math.max(-1, Math.min(1, pitchInput + mobile.gyroPitch * 0.7));
+        rollInput = Math.max(-1, Math.min(1, rollInput + mobile.gyroRoll * 0.7));
+      }
+    }
 
     pitch.current = THREE.MathUtils.lerp(pitch.current, pitchInput * TURN_SPEED, delta * 5);
     roll.current = THREE.MathUtils.lerp(roll.current, rollInput * ROLL_SPEED, delta * 5);

@@ -11,6 +11,9 @@ import { HUD } from './HUD';
 import { Menu } from './Menu';
 import { PauseMenu } from './PauseMenu';
 import { MissionSystem } from './MissionSystem';
+import { MobileControls } from './MobileControls';
+import { GroundCombat } from './GroundCombat';
+import { EnemySoldiers } from './EnemySoldiers';
 import { useGameStore } from '../store';
 
 import { GameLogic } from './GameLogic';
@@ -69,9 +72,12 @@ export function Game() {
             <Weapons />
             <Effects />
             <GameLogic />
+            <GroundCombat />
+            <EnemySoldiers />
           </Suspense>
         </Canvas>
         <HUD />
+        <MobileControls />
         <Menu />
         <PauseMenu />
         <MissionSystem />

@@ -20,6 +20,43 @@ export function CameraController() {
   useFrame((state, delta) => {
     if (gameState !== 'playing') return;
 
+    // ─── Ejected pilot camera ───
+    if (isEjected) {
+      const store = useGameStore.getState();
+      
+      if (camera instanceof THREE.PerspectiveCamera) {
+        camera.fov = THREE.MathUtils.lerp(camera.fov, store.isOnGround ? 70 : 60, delta * 3);
+        camera.updateProjectionMatrix();
+      }
+
+      if (store.isOnGround) {
+        // First-person ground view
+        const yaw = store.pilotYaw;
+        const pitch = store.pilotPitch;
+
+        // Camera at eye level
+        const eyePos = pilotPos.clone().add(new THREE.Vector3(0, 0.2, 0));
+        camera.position.lerp(eyePos, delta * 15);
+
+        // Look direction from yaw and pitch
+        const lookDir = new THREE.Vector3(
+          -Math.sin(yaw) * Math.cos(pitch),
+          Math.sin(pitch),
+          -Math.cos(yaw) * Math.cos(pitch)
+        );
+        const lookTarget = camera.position.clone().add(lookDir.multiplyScalar(10));
+        camera.lookAt(lookTarget);
+      } else {
+        // Parachute descent — 3rd person behind pilot
+        const offset = new THREE.Vector3(0, 5, 15);
+        const targetCamPos = pilotPos.clone().add(offset);
+        camera.position.lerp(targetCamPos, delta * 3);
+        camera.lookAt(pilotPos.clone().add(new THREE.Vector3(0, 2, 0)));
+      }
+      return;
+    }
+
+    // ─── Jet camera modes ───
     // Dynamic FOV based on speed
     if (camera instanceof THREE.PerspectiveCamera) {
       const targetFov = 60 + (speed / 800) * 20;
@@ -59,13 +96,6 @@ export function CameraController() {
       idealLookAt.current.add(playerPos);
       
       camera.lookAt(idealLookAt.current);
-    }
-
-    if (isEjected) {
-       // Override camera to look at pilot
-       const offset = new THREE.Vector3(0, 5, 20);
-       camera.position.lerp(pilotPos.clone().add(offset), 0.1);
-       camera.lookAt(pilotPos);
     }
   });
 

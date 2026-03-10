@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { useGameStore } from '../store';
 import { audioSynth } from '../audio';
 import { useKeyboardControls } from '@react-three/drei';
+import { getTerrainHeight } from '../utils/terrain';
 
 export function GameLogic() {
   const gameState = useGameStore(state => state.gameState);
@@ -92,22 +93,46 @@ export function GameLogic() {
     }
   });
 
-  // Pilot physics after ejection
-  useFrame((state, delta) => {
+  // Pilot physics after ejection - parachute descent only (ground movement is in GroundCombat)
+  // This is handled by GroundCombat.tsx now, but we keep soldier spawning here
+  const soldierSpawnDone = React.useRef(false);
+
+  useEffect(() => {
+    if (!isEjected) {
+      soldierSpawnDone.current = false;
+    }
+  }, [isEjected]);
+
+  useFrame((state) => {
     if (!isEjected) return;
 
-    const newPilotPos = pilotPos.clone();
-    newPilotPos.y -= 10 * delta; // Fall speed
-    
-    // Slow drift
-    const winds = new THREE.Vector3(2 * Math.sin(state.clock.elapsedTime * 0.5), 0, 2 * Math.cos(state.clock.elapsedTime * 0.5));
-    newPilotPos.addScaledVector(winds, delta);
-    
-    useGameStore.setState({ pilotPos: newPilotPos });
-    
-    if (newPilotPos.y < 2) {
-        // Mission ends when pilot lands
-        useGameStore.getState().setMission({ completed: true, objective: 'MISSION ENDED: PILOT EJECTED' });
+    const store = useGameStore.getState();
+
+    // Spawn soldiers when pilot lands
+    if (store.isOnGround && !soldierSpawnDone.current) {
+      soldierSpawnDone.current = true;
+      const pilotLandPos = store.pilotPos;
+
+      // Spawn 8-12 soldiers around landing position
+      const soldierCount = 8 + Math.floor(Math.random() * 5);
+      for (let i = 0; i < soldierCount; i++) {
+        const angle = (i / soldierCount) * Math.PI * 2 + (Math.random() - 0.5) * 0.5;
+        const dist = 30 + Math.random() * 70;
+        const sx = pilotLandPos.x + Math.cos(angle) * dist;
+        const sz = pilotLandPos.z + Math.sin(angle) * dist;
+        const sy = getTerrainHeight(sx, sz);
+
+        store.spawnSoldier({
+          position: new THREE.Vector3(sx, sy, sz),
+          health: 100,
+          state: 'idle',
+          velocity: new THREE.Vector3(),
+          targetPos: new THREE.Vector3(sx, sy, sz),
+          lastFired: 0,
+          lastStateChange: state.clock.elapsedTime + Math.random() * 2,
+          deathTime: 0,
+        });
+      }
     }
   });
 
@@ -225,13 +250,13 @@ export function GameLogic() {
         }
     }
 
-    // Check projectiles vs enemies
+    // Check projectiles vs enemies (air combat)
     projectiles.forEach(proj => {
       if (proj.owner === 'player') {
+        // Check vs air enemies
         enemies.forEach(enemy => {
           const dist = proj.position.distanceTo(enemy.position);
           if (dist < 20) { // Hit radius
-            // Hit!
             removeProjectile(proj.id);
             audioSynth.playExplosion();
             spawnParticle({
@@ -264,12 +289,48 @@ export function GameLogic() {
               enemiesDestroyed: currentEnemies + 1
             });
             
-            // Check for mission completion (simple version: destroy 5 enemies)
             if (currentEnemies + 1 >= 5 && !useGameStore.getState().mission.completed) {
                 useGameStore.getState().setMission({ completed: true });
                 useGameStore.getState().advanceCareer();
             }
             saveProgress();
+          }
+        });
+
+        // Check vs ground soldiers
+        const storeNow = useGameStore.getState();
+        storeNow.soldiers.forEach(soldier => {
+          if (soldier.state === 'dead') return;
+          const dist = proj.position.distanceTo(soldier.position.clone().add(new THREE.Vector3(0, 1, 0)));
+          if (dist < 3) { // Smaller hit radius for soldiers
+            removeProjectile(proj.id);
+            const newHealth = soldier.health - 50;
+            if (newHealth <= 0) {
+              // Soldier killed
+              audioSynth.playSoldierHit();
+              spawnParticle({
+                position: soldier.position.clone().add(new THREE.Vector3(0, 1, 0)),
+                type: 'explosion',
+                createdAt: state.clock.elapsedTime,
+                duration: 0.5
+              });
+              storeNow.updateSoldier(soldier.id, { state: 'dead', health: 0, deathTime: state.clock.elapsedTime });
+              const curTrophies = storeNow.trophies;
+              const curHits = storeNow.shotsHit;
+              const curSoldiers = storeNow.soldiersDestroyed;
+              storeNow.addXP(50);
+              setPlayerStats({
+                score: score + 150,
+                trophies: curTrophies + 150,
+                shotsHit: curHits + 1,
+                soldiersDestroyed: curSoldiers + 1,
+              });
+              saveProgress();
+            } else {
+              // Soldier wounded
+              audioSynth.playSoldierHit();
+              storeNow.updateSoldier(soldier.id, { health: newHealth, state: 'combat', lastStateChange: state.clock.elapsedTime });
+            }
           }
         });
         
@@ -300,15 +361,31 @@ export function GameLogic() {
           });
         }
       } else if (proj.owner === 'enemy') {
-        const dist = proj.position.distanceTo(playerPos);
-        if (dist < 40) {
-          removeProjectile(proj.id);
-          audioSynth.playExplosion();
-          const newHealth = health - 20;
-          setPlayerStats({ health: newHealth });
-          if (newHealth <= 0) {
-            setGameState('gameover');
-            audioSynth.stopEngine();
+        // Check vs player jet (only if not ejected)
+        if (!isEjected) {
+          const dist = proj.position.distanceTo(playerPos);
+          if (dist < 40) {
+            removeProjectile(proj.id);
+            audioSynth.playExplosion();
+            const newHealth = health - 20;
+            setPlayerStats({ health: newHealth });
+            if (newHealth <= 0) {
+              setGameState('gameover');
+              audioSynth.stopEngine();
+            }
+          }
+        }
+        // Check vs ejected pilot
+        if (isEjected) {
+          const pilotP = useGameStore.getState().pilotPos;
+          const dist = proj.position.distanceTo(pilotP);
+          if (dist < 3) {
+            removeProjectile(proj.id);
+            const newHealth = health - 15;
+            setPlayerStats({ health: newHealth });
+            if (newHealth <= 0) {
+              setGameState('gameover');
+            }
           }
         }
       }

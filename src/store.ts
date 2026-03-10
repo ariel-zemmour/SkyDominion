@@ -21,6 +21,18 @@ export interface Building {
   health: number;
 }
 
+export interface Soldier {
+  id: string;
+  position: THREE.Vector3;
+  health: number;
+  state: 'idle' | 'patrol' | 'combat' | 'dead';
+  velocity: THREE.Vector3;
+  targetPos: THREE.Vector3;
+  lastFired: number;
+  lastStateChange: number;
+  deathTime: number;
+}
+
 export interface Jet {
   id: string;
   name: string;
@@ -187,6 +199,18 @@ interface GameStore {
   jetStatus: 'normal' | 'crashing' | 'hidden';
   setJetStatus: (status: 'normal' | 'crashing' | 'hidden') => void;
   
+  // Ground combat
+  isOnGround: boolean;
+  setIsOnGround: (val: boolean) => void;
+  rifleAmmo: number;
+  pilotYaw: number;
+  pilotPitch: number;
+  soldiers: Soldier[];
+  soldiersDestroyed: number;
+  spawnSoldier: (soldier: Omit<Soldier, 'id'>) => void;
+  removeSoldier: (id: string) => void;
+  updateSoldier: (id: string, updates: Partial<Soldier>) => void;
+  
   // Key Mapping
   keyMap: KeyMapping;
   setKeyMap: (keyMap: KeyMapping) => void;
@@ -314,6 +338,24 @@ export const useGameStore = create<GameStore>((set, get) => ({
   setJetStatus: (jetStatus) => set({ jetStatus }),
   setIsEjected: (isEjected) => set({ isEjected }),
   
+  // Ground combat
+  isOnGround: false,
+  setIsOnGround: (isOnGround) => set({ isOnGround }),
+  rifleAmmo: 120,
+  pilotYaw: 0,
+  pilotPitch: 0,
+  soldiers: [],
+  soldiersDestroyed: 0,
+  spawnSoldier: (soldier) => set((state) => ({
+    soldiers: [...state.soldiers, { ...soldier, id: Math.random().toString(36).substring(7) }]
+  })),
+  removeSoldier: (id) => set((state) => ({
+    soldiers: state.soldiers.filter(s => s.id !== id)
+  })),
+  updateSoldier: (id, updates) => set((state) => ({
+    soldiers: state.soldiers.map(s => s.id === id ? { ...s, ...updates } : s)
+  })),
+  
   setPlayerStats: (stats) => set((state) => ({ ...state, ...stats })),
   
   playerPos: new THREE.Vector3(0, 1000, 0),
@@ -375,6 +417,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
       shotsHit: 0,
       completionPercentage: 0,
       isEjected: false,
+      isOnGround: false,
+      rifleAmmo: 120,
+      pilotYaw: 0,
+      pilotPitch: 0,
+      soldiers: [],
+      soldiersDestroyed: 0,
       jetStatus: 'normal',
       pilotPos: new THREE.Vector3(),
       playerPos: new THREE.Vector3(0, 1000, 0),

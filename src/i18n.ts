@@ -68,7 +68,12 @@ export const translations = {
     fireBullets: 'Machine Gun',
     fireHoming: 'Homing Missile',
     fireGround: 'Ground Missile',
-    trophies: 'Trophies'
+    trophies: 'Trophies',
+    rifleAmmo: 'Rifle',
+    soldiersKilled: 'Soldiers',
+    groundCombat: 'GROUND COMBAT',
+    parachuting: 'PARACHUTING',
+    landed: 'ON GROUND',
   },
   he: {
     mainMenu: 'תפריט ראשי',
@@ -136,7 +141,12 @@ export const translations = {
     fireBullets: 'מקלע',
     fireHoming: 'טיל ביות',
     fireGround: 'טיל קרקע',
-    trophies: 'גביעים'
+    trophies: 'גביעים',
+    rifleAmmo: 'רובה',
+    soldiersKilled: 'חיילים',
+    groundCombat: 'לחימה קרקעית',
+    parachuting: 'צניחה',
+    landed: 'על הקרקע',
   }
 };
 
