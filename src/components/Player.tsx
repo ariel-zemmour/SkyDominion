@@ -18,7 +18,7 @@ const ROLL_SPEED = 3.0;
 export function Player() {
   const group = useRef<THREE.Group>(null);
   const [, get] = useKeyboardControls();
-  
+
   const playerPos = useGameStore(state => state.playerPos);
   const playerRot = useGameStore(state => state.playerRot);
   const playerVelocity = useGameStore(state => state.playerVelocity);
@@ -26,11 +26,13 @@ export function Player() {
   const gameState = useGameStore(state => state.gameState);
   const activeJetId = useGameStore(state => state.activeJet);
   const activeJet = JETS.find(j => j.id === activeJetId) || JETS[0];
-  
+
   const speed = useRef(300);
   const pitch = useRef(0);
   const yaw = useRef(0);
   const roll = useRef(0);
+
+  const jetStatus = useGameStore(state => state.jetStatus);
 
   useEffect(() => {
     if (gameState === 'playing' && group.current) {
@@ -41,8 +43,8 @@ export function Player() {
       yaw.current = 0;
       roll.current = 0;
     }
-  }, [gameState]);
-  
+  }, [gameState, jetStatus]);
+
   // Visual parts for animation
   const leftAileron = useRef<THREE.Mesh>(null);
   const rightAileron = useRef<THREE.Mesh>(null);
@@ -60,7 +62,6 @@ export function Player() {
   const groundMissiles = useGameStore(state => state.groundMissiles);
   const setIsEjected = useGameStore(state => state.setIsEjected);
   const isEjected = useGameStore(state => state.isEjected);
-  const jetStatus = useGameStore(state => state.jetStatus);
   const setJetStatus = useGameStore(state => state.setJetStatus);
   const lockedTargetId = useGameStore(state => state.lockedTargetId);
   const fuel = useGameStore(state => state.fuel);
@@ -87,8 +88,8 @@ export function Player() {
     if (gameState !== 'playing' || !group.current) return;
 
     if (isEjected) {
-        // Ejected pilot camera handling is in CameraController, but we stop control here
-        return;
+      // Ejected pilot camera handling is in CameraController, but we stop control here
+      return;
     }
 
     const keys = get();
@@ -119,15 +120,15 @@ export function Player() {
     const fireRate = 0.1 / activeJet.weapons;
     if (fireBullets && state.clock.elapsedTime - lastFired.current > fireRate && bullets > 0) {
       lastFired.current = state.clock.elapsedTime;
-      setPlayerStats({ 
+      setPlayerStats({
         bullets: bullets - 1,
         shotsFired: useGameStore.getState().shotsFired + 1
       });
       audioSynth.playShoot();
-      
+
       const direction = new THREE.Vector3(0, 0, -1).applyQuaternion(group.current.quaternion);
       const projVel = direction.clone().multiplyScalar(2000).add(playerVelocity);
-      
+
       fireProjectile({
         position: group.current.position.clone().add(direction.clone().multiplyScalar(activeJet.length * 2)),
         velocity: projVel,
@@ -140,15 +141,15 @@ export function Player() {
     // Homing Missiles
     if (fireHoming && state.clock.elapsedTime - lastMissile.current > 1.0 && homingMissiles > 0) {
       lastMissile.current = state.clock.elapsedTime;
-      setPlayerStats({ 
+      setPlayerStats({
         homingMissiles: homingMissiles - 1,
         shotsFired: useGameStore.getState().shotsFired + 1
       });
       audioSynth.playMissile();
-      
+
       const direction = new THREE.Vector3(0, 0, -1).applyQuaternion(group.current.quaternion);
       const projVel = direction.clone().multiplyScalar(1200).add(playerVelocity);
-      
+
       fireProjectile({
         position: group.current.position.clone().add(direction.clone().multiplyScalar(activeJet.length * 2)),
         velocity: projVel,
@@ -162,15 +163,15 @@ export function Player() {
     // Ground Missiles
     if (fireGround && state.clock.elapsedTime - lastMissile.current > 1.0 && groundMissiles > 0) {
       lastMissile.current = state.clock.elapsedTime;
-      setPlayerStats({ 
+      setPlayerStats({
         groundMissiles: groundMissiles - 1,
         shotsFired: useGameStore.getState().shotsFired + 1
       });
       audioSynth.playMissile();
-      
+
       const direction = new THREE.Vector3(0, 0, -1).applyQuaternion(group.current.quaternion);
       const projVel = direction.clone().multiplyScalar(1000).add(playerVelocity);
-      
+
       fireProjectile({
         position: group.current.position.clone().add(direction.clone().multiplyScalar(activeJet.length * 2)),
         velocity: projVel,
@@ -185,43 +186,43 @@ export function Player() {
     setFuel(fuel - fuelRate);
 
     if (fuel <= 0) {
-        speed.current = Math.max(speed.current - 100 * delta, 0); // Flame out
+      speed.current = Math.max(speed.current - 100 * delta, 0); // Flame out
     }
 
     // Refueling logic (check for tanker - placeholder for now, just check a high altitude point)
     const tankerPos = new THREE.Vector3(0, 5000, 0); // Tanker at 5000ft over center
     if (group.current.position.distanceTo(tankerPos) < 200) {
-        setFuel(fuel + 5 * delta);
-        setRefueling(true);
+      setFuel(fuel + 5 * delta);
+      setRefueling(true);
     } else {
-        setRefueling(false);
+      setRefueling(false);
     }
 
     // Ejection
     if (eject && !isEjected) {
-        setIsEjected(true);
-        setJetStatus('crashing');
-        // Launch pilot upward from jet with ejection seat impulse
-        useGameStore.setState({ 
-          pilotPos: group.current.position.clone().add(new THREE.Vector3(0, 5, 0)),
-          pilotVelocityY: 40, // Strong upward ejection impulse
-          ejectionTime: state.clock.elapsedTime,
-          parachuteDeployed: false,
-          isOnGround: false,
-        });
-        audioSynth.playExplosion();
-        audioSynth.stopEngine();
+      setIsEjected(true);
+      setJetStatus('crashing');
+      // Launch pilot upward from jet with ejection seat impulse
+      useGameStore.setState({
+        pilotPos: group.current.position.clone().add(new THREE.Vector3(0, 5, 0)),
+        pilotVelocityY: 40, // Strong upward ejection impulse
+        ejectionTime: state.clock.elapsedTime,
+        parachuteDeployed: false,
+        isOnGround: false,
+      });
+      audioSynth.playExplosion();
+      audioSynth.stopEngine();
     }
 
     // Throttle
     let targetSpeed = speed.current;
     if (forward) targetSpeed += ACCELERATION * delta;
     if (backward) targetSpeed -= ACCELERATION * delta;
-    
+
     const currentMaxSpeed = shift ? activeJet.speed * AFTERBURNER_MULTIPLIER : activeJet.speed;
     targetSpeed = THREE.MathUtils.clamp(targetSpeed, MIN_SPEED, currentMaxSpeed);
     speed.current = THREE.MathUtils.lerp(speed.current, targetSpeed, delta * 2);
-    
+
     audioSynth.setEngineSpeed((speed.current - MIN_SPEED) / (activeJet.speed * AFTERBURNER_MULTIPLIER - MIN_SPEED));
 
     // Rotation — blend keyboard boolean + mobile analog
@@ -260,10 +261,10 @@ export function Player() {
 
     // Collision detection with terrain
     const terrainHeight = getTerrainHeight(group.current.position.x, group.current.position.z);
-    
+
     // Check for collision with terrain or buildings
     let hasCollided = group.current.position.y <= terrainHeight + 5;
-    
+
     if (!hasCollided) {
       const buildings = useGameStore.getState().buildings;
       for (const building of buildings) {
@@ -272,7 +273,7 @@ export function Player() {
         const dx = group.current.position.x - building.position.x;
         const dz = group.current.position.z - building.position.z;
         const dy = group.current.position.y - building.position.y;
-        
+
         // Check if within building bounds (approximate with cylinder/box)
         const collisionWidth = activeJet.wingSpan * 2;
         const collisionHeight = activeJet.length * 4;
@@ -310,32 +311,32 @@ export function Player() {
 
   useFrame((state, delta) => {
     if (jetStatus === 'crashing' && group.current) {
-        // Crashing physics
-        playerVelocity.y -= 30 * delta; // Gravity
-        group.current.position.addScaledVector(playerVelocity, delta);
-        group.current.rotateX(0.05 * delta); // Slow tumble
-        group.current.rotateZ(0.1 * delta);
+      // Crashing physics
+      playerVelocity.y -= 30 * delta; // Gravity
+      group.current.position.addScaledVector(playerVelocity, delta);
+      group.current.rotateX(0.05 * delta); // Slow tumble
+      group.current.rotateZ(0.1 * delta);
 
-        if (state.clock.elapsedTime % 0.05 < delta) {
-            spawnParticle({
-                position: group.current.position.clone(),
-                type: 'smoke',
-                createdAt: state.clock.elapsedTime,
-                duration: 1.5
-            });
-        }
+      if (state.clock.elapsedTime % 0.05 < delta) {
+        spawnParticle({
+          position: group.current.position.clone(),
+          type: 'smoke',
+          createdAt: state.clock.elapsedTime,
+          duration: 1.5
+        });
+      }
 
-        const terrainHeight = getTerrainHeight(group.current.position.x, group.current.position.z);
-        if (group.current.position.y <= terrainHeight + 2) {
-            spawnParticle({
-                position: group.current.position.clone(),
-                type: 'explosion',
-                createdAt: state.clock.elapsedTime,
-                duration: 3
-            });
-            audioSynth.playExplosion();
-            setJetStatus('hidden');
-        }
+      const terrainHeight = getTerrainHeight(group.current.position.x, group.current.position.z);
+      if (group.current.position.y <= terrainHeight + 2) {
+        spawnParticle({
+          position: group.current.position.clone(),
+          type: 'explosion',
+          createdAt: state.clock.elapsedTime,
+          duration: 3
+        });
+        audioSynth.playExplosion();
+        setJetStatus('hidden');
+      }
     }
   });
 
@@ -351,7 +352,7 @@ export function Player() {
             <boxGeometry args={[1.2, 0.8, 0.1]} />
             <meshStandardMaterial color="#1a1a1a" metalness={0.8} roughness={0.2} />
           </mesh>
-          
+
           {/* Instruments / Screens with glowing effect */}
           <mesh position={[0, -0.15, -0.54]} rotation={[-Math.PI / 4, 0, 0]}>
             <planeGeometry args={[1.0, 0.6]} />
@@ -361,7 +362,7 @@ export function Player() {
             <planeGeometry args={[0.8, 0.4]} />
             <meshBasicMaterial color="#00ff00" transparent opacity={0.3} />
           </mesh>
-          
+
           {/* HUD Frame */}
           <group position={[0, 0.3, -0.6]}>
             <mesh position={[0, 0, 0]} rotation={[0.4, 0, 0]}>
@@ -369,11 +370,11 @@ export function Player() {
               <meshBasicMaterial color="#00ff00" transparent opacity={0.15} blending={THREE.AdditiveBlending} side={THREE.DoubleSide} />
             </mesh>
             <mesh position={[0, 0, 0]} rotation={[0.4, 0, 0]}>
-               <edgesGeometry args={[new THREE.PlaneGeometry(0.6, 0.4)]} />
-               <lineBasicMaterial color="#00ff00" transparent opacity={0.4} />
+              <edgesGeometry args={[new THREE.PlaneGeometry(0.6, 0.4)]} />
+              <lineBasicMaterial color="#00ff00" transparent opacity={0.4} />
             </mesh>
           </group>
-          
+
           {/* Pilot Seat */}
           <mesh position={[0, -0.5, 0.4]}>
             <boxGeometry args={[0.8, 1.2, 0.6]} />
@@ -382,14 +383,14 @@ export function Player() {
 
           {/* Controls / Flight Stick */}
           <group position={[0, -0.3, -0.2]}>
-             <mesh rotation={[0.4, 0, 0]}>
-               <cylinderGeometry args={[0.03, 0.03, 0.6]} />
-               <meshStandardMaterial color="#111" />
-             </mesh>
-             <mesh position={[0, 0.3, 0.05]}>
-               <sphereGeometry args={[0.06]} />
-               <meshStandardMaterial color="#333" />
-             </mesh>
+            <mesh rotation={[0.4, 0, 0]}>
+              <cylinderGeometry args={[0.03, 0.03, 0.6]} />
+              <meshStandardMaterial color="#111" />
+            </mesh>
+            <mesh position={[0, 0.3, 0.05]}>
+              <sphereGeometry args={[0.06]} />
+              <meshStandardMaterial color="#333" />
+            </mesh>
           </group>
         </group>
       )}
@@ -428,12 +429,12 @@ export function Player() {
         {/* Bubble Canopy */}
         <mesh position={[0, activeJet.id === 'ww2' ? 0.5 : 0.4, -activeJet.length * 0.1]} castShadow receiveShadow>
           <sphereGeometry args={[0.35, 16, 16, 0, Math.PI * 2, 0, Math.PI / 1.5]} />
-          <meshStandardMaterial 
-            color={activeJet.id === 'stealth' ? "#000" : "#111122"} 
-            roughness={0.1} 
-            metalness={0.5} 
-            transparent 
-            opacity={useGameStore.getState().cameraMode === 'cockpit' ? 0.2 : 0.8} 
+          <meshStandardMaterial
+            color={activeJet.id === 'stealth' ? "#000" : "#111122"}
+            roughness={0.1}
+            metalness={0.5}
+            transparent
+            opacity={useGameStore.getState().cameraMode === 'cockpit' ? 0.2 : 0.8}
             side={THREE.DoubleSide}
           />
         </mesh>
@@ -443,12 +444,12 @@ export function Player() {
           <boxGeometry args={[activeJet.wingSpan, 0.05, 1.5]} />
           <meshStandardMaterial color={activeJet.color} roughness={0.3} metalness={0.8} />
         </mesh>
-        
+
         {/* Additional wing parts for specific jets */}
         {activeJet.id === 'tomcat' && (
           <mesh position={[0, 0, activeJet.length * 0.05]} rotation={[0, 0, 0]}>
-             <boxGeometry args={[activeJet.wingSpan * 0.8, 0.04, 1.2]} />
-             <meshStandardMaterial color={activeJet.color} />
+            <boxGeometry args={[activeJet.wingSpan * 0.8, 0.04, 1.2]} />
+            <meshStandardMaterial color={activeJet.color} />
           </mesh>
         )}
 

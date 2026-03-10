@@ -82,14 +82,28 @@ function SOSFlare() {
 // ── Hangar / Garage Building ─────────────────────────────────────
 function HangarModel() {
   const rescueState = useGameStore(state => state.rescueState);
+  const hangarRef = useRef<THREE.Group>(null);
+  const mechanicRef = useRef<THREE.Group>(null);
 
   // Only show hangar when relevant
   if (!['toHangar', 'landing', 'repairing', 'repaired'].includes(rescueState)) return null;
 
   const groundY = getTerrainHeight(HANGAR_POS.x, HANGAR_POS.z);
 
+  useFrame((state) => {
+    // Mechanic animation
+    if (mechanicRef.current && rescueState === 'repairing') {
+      // Wiggle mechanic to simulate working
+      mechanicRef.current.position.x = 8 + Math.sin(state.clock.elapsedTime * 10) * 0.5;
+      mechanicRef.current.rotation.z = Math.sin(state.clock.elapsedTime * 15) * 0.2;
+    } else if (mechanicRef.current) {
+      mechanicRef.current.position.x = 8;
+      mechanicRef.current.rotation.z = 0;
+    }
+  });
+
   return (
-    <group position={[HANGAR_POS.x, groundY, HANGAR_POS.z]}>
+    <group ref={hangarRef} position={[HANGAR_POS.x, groundY, HANGAR_POS.z]}>
       {/* Main hangar structure — Quonset hut style */}
       <mesh position={[0, 5, 0]}>
         <boxGeometry args={[20, 10, 30]} />
@@ -100,22 +114,36 @@ function HangarModel() {
         <boxGeometry args={[22, 1, 32]} />
         <meshStandardMaterial color="#445566" roughness={0.8} metalness={0.4} />
       </mesh>
-      {/* Open front door */}
+      {/* Open front door - black void to simulate depth */}
       <mesh position={[0, 4, 15.5]}>
         <boxGeometry args={[14, 8, 0.3]} />
-        <meshStandardMaterial color="#222" />
+        <meshStandardMaterial color="#111" />
       </mesh>
+
+      {/* NEW: Runway stretching out of the hangar */}
+      <mesh position={[0, 0.05, 115]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[14, 200]} />
+        <meshStandardMaterial color="#222" roughness={0.9} />
+      </mesh>
+      {/* Runway center lines */}
+      {[...Array(10)].map((_, i) => (
+        <mesh key={i} position={[0, 0.1, 30 + i * 20]} rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[0.5, 8]} />
+          <meshStandardMaterial color="#fff" />
+        </mesh>
+      ))}
+
       {/* Landing pad — "H" marking */}
-      <mesh position={[0, 0.05, 25]} rotation={[-Math.PI/2, 0, 0]}>
+      <mesh position={[0, 0.06, 25]} rotation={[-Math.PI / 2, 0, 0]}>
         <circleGeometry args={[12, 32]} />
         <meshStandardMaterial color="#333" roughness={1} />
       </mesh>
-      <mesh position={[0, 0.1, 25]} rotation={[-Math.PI/2, 0, 0]}>
+      <mesh position={[0, 0.1, 25]} rotation={[-Math.PI / 2, 0, 0]}>
         <ringGeometry args={[10, 11, 32]} />
         <meshStandardMaterial color="#ffcc00" />
       </mesh>
       {/* Mechanic figure */}
-      <group position={[8, 0, 18]}>
+      <group ref={mechanicRef} position={[8, 0, 18]}>
         {/* Body */}
         <mesh position={[0, 1.2, 0]}>
           <boxGeometry args={[0.8, 1.2, 0.5]} />
@@ -139,6 +167,11 @@ function HangarModel() {
         <mesh position={[-0.15, 0.2, 0]}>
           <boxGeometry args={[0.2, 0.8, 0.25]} />
           <meshStandardMaterial color="#333" />
+        </mesh>
+        {/* Wrench */}
+        <mesh position={[-0.5, 1.2, 0.4]} rotation={[0, 0, Math.PI / 4]}>
+          <boxGeometry args={[0.1, 0.8, 0.1]} />
+          <meshStandardMaterial color="#888" metalness={0.8} />
         </mesh>
       </group>
       {/* Hangar lights */}
@@ -296,33 +329,35 @@ function HelicopterModel() {
           homingMissiles: 20,
           groundMissiles: 10,
           jetStatus: 'normal',
-          // Place jet at hangar runway
-          playerPos: new THREE.Vector3(HANGAR_POS.x, hangarGroundY + 50, HANGAR_POS.z + 80),
-          playerRot: new THREE.Quaternion(),
-          speed: 0,
-          altitude: 50,
+          // Place jet at hangar runway start, facing +Z
+          playerPos: new THREE.Vector3(HANGAR_POS.x, hangarGroundY + 12, HANGAR_POS.z + 50),
+          playerRot: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI, 0)),
           score: jet.score + 1000, // Bonus for surviving
         });
+
+        repairStart.current = state.clock.elapsedTime; // reuse for delay
       }
     }
 
     // ── State: REPAIRED — player takes off ──────────────
     else if (rescueState === 'repaired') {
-      // Helicopter stays parked. Player is back in jet control.
-      // After a moment, reset rescue state fully
-      useGameStore.setState({
-        rescueState: 'none',
-        isRescueCalled: false,
-        isEjected: false,
-        isOnGround: false,
-        sosFired: false,
-        repairProgress: 0,
-        // Reset ground combat
-        soldiers: [],
-        soldiersDestroyed: 0,
-        rifleAmmo: 120,
-        gameState: 'playing',
-      });
+      // Helicopter stays parked. Player is back in jet control flying down runway.
+      // Wait 5 seconds before making hangar disappear
+      if (state.clock.elapsedTime - repairStart.current > 5) {
+        useGameStore.setState({
+          rescueState: 'none',
+          isRescueCalled: false,
+          isEjected: false,
+          isOnGround: false,
+          sosFired: false,
+          repairProgress: 0,
+          // Reset ground combat
+          soldiers: [],
+          soldiersDestroyed: 0,
+          rifleAmmo: 120,
+          gameState: 'playing',
+        });
+      }
     }
 
     group.current.position.copy(heliPos);
@@ -357,11 +392,11 @@ function HelicopterModel() {
       </mesh>
 
       {/* Red cross (medical rescue) */}
-      <mesh position={[1.01, 0.3, 0]} rotation={[0, Math.PI/2, 0]}>
+      <mesh position={[1.01, 0.3, 0]} rotation={[0, Math.PI / 2, 0]}>
         <planeGeometry args={[1.5, 0.4]} />
         <meshStandardMaterial color="#cc0000" />
       </mesh>
-      <mesh position={[1.01, 0.3, 0]} rotation={[0, Math.PI/2, 0]}>
+      <mesh position={[1.01, 0.3, 0]} rotation={[0, Math.PI / 2, 0]}>
         <planeGeometry args={[0.4, 1.5]} />
         <meshStandardMaterial color="#cc0000" />
       </mesh>
@@ -380,7 +415,7 @@ function HelicopterModel() {
 
       {/* Tail Rotor */}
       <group position={[0.4, 0.5, -5.5]}>
-        <mesh rotation={[0, 0, Math.PI/2]}>
+        <mesh rotation={[0, 0, Math.PI / 2]}>
           <cylinderGeometry args={[0.1, 0.1, 0.3, 8]} />
           <meshStandardMaterial color="#222" />
         </mesh>
@@ -391,11 +426,11 @@ function HelicopterModel() {
       </group>
 
       {/* Skids */}
-      <mesh position={[-1, -1.5, 0]} rotation={[Math.PI/2, 0, 0]}>
+      <mesh position={[-1, -1.5, 0]} rotation={[Math.PI / 2, 0, 0]}>
         <cylinderGeometry args={[0.1, 0.1, 6, 8]} />
         <meshStandardMaterial color="#555" metalness={0.5} />
       </mesh>
-      <mesh position={[1, -1.5, 0]} rotation={[Math.PI/2, 0, 0]}>
+      <mesh position={[1, -1.5, 0]} rotation={[Math.PI / 2, 0, 0]}>
         <cylinderGeometry args={[0.1, 0.1, 6, 8]} />
         <meshStandardMaterial color="#555" metalness={0.5} />
       </mesh>
