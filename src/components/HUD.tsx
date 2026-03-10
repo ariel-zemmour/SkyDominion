@@ -1,6 +1,6 @@
 import React from 'react';
 import { useGameStore } from '../store';
-import { Crosshair, Target, Navigation, AlertTriangle, Pause, Crosshair as RifleIcon, Users } from 'lucide-react';
+import { Crosshair, Target, Navigation, AlertTriangle, Pause } from 'lucide-react';
 import { getTranslation } from '../i18n';
 import { Radar } from './Radar';
 
@@ -19,20 +19,6 @@ export function HUD() {
   const language = useGameStore(state => state.language);
   const projectiles = useGameStore(state => state.projectiles);
   const playerPos = useGameStore(state => state.playerPos);
-  const fuel = useGameStore(state => state.fuel);
-  const isRefueling = useGameStore(state => state.isRefueling);
-  const rank = useGameStore(state => state.rank);
-  const xp = useGameStore(state => state.xp);
-  const keyMap = useGameStore(state => state.keyMap);
-  const isEjected = useGameStore(state => state.isEjected);
-  const isOnGround = useGameStore(state => state.isOnGround);
-  const rifleAmmo = useGameStore(state => state.rifleAmmo);
-  const soldiersDestroyed = useGameStore(state => state.soldiersDestroyed);
-  const soldiers = useGameStore(state => state.soldiers);
-  const parachuteDeployed = useGameStore(state => state.parachuteDeployed);
-  const isRescueCalled = useGameStore(state => state.isRescueCalled);
-  const rescueState = useGameStore(state => state.rescueState);
-  const repairProgress = useGameStore(state => state.repairProgress);
 
   const isMissileIncoming = projectiles.some(p => p.type === 'missile' && p.owner === 'enemy' && p.position.distanceTo(playerPos) < 2000);
 
@@ -43,26 +29,12 @@ export function HUD() {
 
   return (
     <div className={`absolute inset-0 pointer-events-none select-none overflow-hidden font-mono text-green-500 ${isRTL ? 'dir-rtl' : 'dir-ltr'}`} dir={isRTL ? 'rtl' : 'ltr'}>
-      {/* Top Center Warnings */}
-      <div className="absolute top-4 left-1/2 transform -translate-x-1/2 flex flex-col items-center gap-2">
-        {isMissileIncoming && (
-          <div className="flex flex-col items-center gap-1">
-             <div className="text-red-500 text-3xl font-black animate-ping">
-                <AlertTriangle size={48} />
-             </div>
-             <div className="bg-red-600 text-white px-6 py-1 text-xl font-bold rounded shadow-[0_0_20px_rgba(220,38,38,0.8)] animate-pulse">
-                {isRTL ? 'טיל מתקרב!' : 'MISSILE INCOMING!'}
-             </div>
-          </div>
-        )}
-        
-        {isRefueling && (
-          <div className="bg-blue-600 text-white px-6 py-2 text-xl font-bold rounded shadow-[0_0_20px_rgba(37,99,235,0.8)] animate-pulse flex items-center gap-2">
-             <Navigation size={24} className="animate-spin" />
-             {t('refueling')}
-          </div>
-        )}
-      </div>
+      {/* Missile Warning */}
+      {isMissileIncoming && (
+        <div className="absolute top-1/3 left-1/2 transform -translate-x-1/2 text-red-500 text-4xl font-bold animate-pulse">
+          MISSILE INCOMING!
+        </div>
+      )}
 
       {/* Radar */}
       <Radar />
@@ -77,26 +49,10 @@ export function HUD() {
 
       {/* Crosshair */}
       <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-70">
-        {isEjected && isOnGround ? (
-          <div className="relative w-12 h-12 flex items-center justify-center">
-            <div className="absolute w-10 h-10 border-2 border-red-500/60 rounded-full" />
-            <div className="absolute w-1.5 h-1.5 bg-red-500 rounded-full" />
-            <div className="absolute w-[1px] h-5 bg-red-500/50 top-0" />
-            <div className="absolute w-[1px] h-5 bg-red-500/50 bottom-0" />
-            <div className="absolute h-[1px] w-5 bg-red-500/50 left-0" />
-            <div className="absolute h-[1px] w-5 bg-red-500/50 right-0" />
-          </div>
-        ) : (
-          <div className={`transition-all duration-200 ${lockedTargetId ? 'scale-150 text-red-500 animate-pulse' : 'text-green-500'}`}>
-            <Crosshair size={48} strokeWidth={1} />
-          </div>
-        )}
-        {lockedTargetId && !isEjected && (
-          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-            <div className="w-16 h-16 border-2 border-red-600 rounded-sm rotate-45 animate-[spin_4s_linear_infinite]"></div>
-            <div className="absolute -top-6 left-1/2 -translate-x-1/2 text-xs font-bold text-red-500 tracking-widest whitespace-nowrap">
-               LOCKED
-            </div>
+        <Crosshair size={48} strokeWidth={1} />
+        {lockedTargetId && (
+          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-red-500 animate-pulse">
+            <Target size={64} strokeWidth={1.5} />
           </div>
         )}
       </div>
@@ -111,33 +67,11 @@ export function HUD() {
       </div>
 
       {/* Top Right: Score & Status */}
-      <div className={`absolute top-4 ${isRTL ? 'left-4 text-left' : 'right-4 text-right'} flex flex-col gap-2 items-end`}>
-        <div className="bg-black/30 p-4 rounded-lg backdrop-blur-sm border border-green-500/30">
-            <div className="text-2xl font-bold mb-1">{t('hudScore')}: {score.toString().padStart(6, '0')}</div>
-            <div className="text-xl font-bold mb-1 text-yellow-500">{t('trophies')}: {trophies}</div>
-            <div className="text-lg font-bold text-blue-400">{t('rank')}: {rank} ({xp} XP)</div>
-            <div className={`flex items-center ${isRTL ? 'justify-start' : 'justify-end'} gap-2 text-red-500 animate-pulse mt-2`}>
-              {health < 30 && <><AlertTriangle size={20} /> {t('warningLowHull')}</>}
-            </div>
-            {health < 25 && (
-                <div className="mt-2 text-center font-bold text-red-500 text-xl border-t border-red-500/20 pt-2">
-                    {t('eject').toUpperCase()} [{keyMap.eject.replace('Key', '')}]
-                </div>
-            )}
-        </div>
-        
-        {/* Fuel Gauge */}
-        <div className="bg-black/30 p-3 rounded-lg backdrop-blur-sm border border-green-500/30 w-48">
-            <div className="flex justify-between items-center mb-1">
-                <span className="text-xs opacity-70">{t('fuel')}</span>
-                <span className={`text-sm font-bold ${fuel < 20 ? 'text-red-500 animate-pulse' : 'text-green-500'}`}>{Math.round(fuel)}%</span>
-            </div>
-            <div className="w-full h-2 bg-gray-800 rounded overflow-hidden">
-                <div 
-                  className={`h-full transition-all duration-300 ${fuel > 50 ? 'bg-green-500' : fuel > 20 ? 'bg-yellow-500' : 'bg-red-500'}`} 
-                  style={{ width: `${fuel}%` }}
-                ></div>
-            </div>
+      <div className={`absolute top-4 ${isRTL ? 'left-4 text-left' : 'right-4 text-right'} bg-black/30 p-4 rounded-lg backdrop-blur-sm border border-green-500/30`}>
+        <div className="text-2xl font-bold mb-1">{t('hudScore')}: {score.toString().padStart(6, '0')}</div>
+        <div className="text-xl font-bold mb-2 text-yellow-500">{t('trophies')}: {trophies}</div>
+        <div className={`flex items-center ${isRTL ? 'justify-start' : 'justify-end'} gap-2 text-red-500 animate-pulse`}>
+          {health < 30 && <><AlertTriangle size={20} /> {t('warningLowHull')}</>}
         </div>
       </div>
 
@@ -190,88 +124,6 @@ export function HUD() {
           ></div>
         </div>
       </div>
-
-      {/* Ground Combat HUD overlay */}
-      {isEjected && (
-        <>
-          {/* Status banner */}
-          <div className="absolute top-4 left-1/2 transform -translate-x-1/2 flex flex-col items-center gap-2">
-            <div className={`px-6 py-2 rounded-lg font-bold text-lg tracking-widest border backdrop-blur-sm ${
-              isOnGround 
-                ? 'bg-orange-600/30 border-orange-500/50 text-orange-300 shadow-[0_0_20px_rgba(234,88,12,0.3)]' 
-                : parachuteDeployed
-                  ? 'bg-blue-600/30 border-blue-500/50 text-blue-300 shadow-[0_0_20px_rgba(59,130,246,0.3)] animate-pulse'
-                  : 'bg-red-600/40 border-red-500/60 text-red-300 shadow-[0_0_20px_rgba(220,38,38,0.5)] animate-pulse'
-            }`}>
-              {isOnGround ? t('groundCombat') : parachuteDeployed ? t('parachuting') : 'EJECTING!'}
-            </div>
-            {!isOnGround && (
-              <div className="text-sm font-mono text-blue-300/70">
-                {t('hudAlt')}: {Math.round(altitude)} {t('ft')}
-              </div>
-            )}
-            
-            {/* SOS / Rescue Status */}
-            {(parachuteDeployed || isOnGround) && (
-              <div className="mt-4 flex flex-col items-center">
-                {!isRescueCalled ? (
-                  <div className="bg-red-600/30 border border-red-500/50 text-red-300 px-4 py-2 rounded shadow-[0_0_15px_rgba(220,38,38,0.4)] animate-pulse flex items-center gap-2">
-                    <span className="font-bold border border-red-400/50 rounded px-1.5 py-0.5 text-xs">{keyMap.callRescue.replace('Key', '')}</span>
-                    <span>🆘 {t('callRescue')}</span>
-                  </div>
-                ) : (
-                  <div className="bg-blue-600/30 border border-blue-500/50 text-blue-300 px-4 py-2 rounded font-bold shadow-[0_0_15px_rgba(59,130,246,0.5)] flex flex-col items-center gap-2">
-                    <div className="flex items-center gap-2">
-                      {rescueState === 'incoming' && '🚁 ' + t('rescueIncoming')}
-                      {rescueState === 'hovering' && '🪢 GRAB ROPE!'}
-                      {rescueState === 'lifting' && '🚁 ' + t('rescued')}
-                      {rescueState === 'toHangar' && '🚁 ' + t('flyingToHangar')}
-                      {rescueState === 'landing' && '🚁 Landing...'}
-                      {rescueState === 'repairing' && '🔧 ' + t('repairing')}
-                      {rescueState === 'repaired' && '✅ ' + t('repaired')}
-                    </div>
-                    {/* Repair progress bar */}
-                    {rescueState === 'repairing' && (
-                      <div className="w-48">
-                        <div className="w-full h-2.5 bg-gray-800 rounded overflow-hidden border border-blue-500/30">
-                          <div
-                            className="h-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all duration-300"
-                            style={{ width: `${repairProgress}%` }}
-                          />
-                        </div>
-                        <div className="text-xs text-center mt-1 text-cyan-300/70">{Math.round(repairProgress)}%</div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Ground combat stats */}
-          <div className={`absolute bottom-20 ${isRTL ? 'left-4 text-left' : 'right-4 text-right'} bg-black/40 p-3 rounded-lg backdrop-blur-sm border border-orange-500/30`}>
-            <div className="flex flex-col gap-2">
-              <div className="flex justify-between items-center w-44 gap-4">
-                <span className="text-sm text-orange-400/70 flex items-center gap-1">
-                  {t('rifleAmmo')}
-                </span>
-                <span className={`text-xl font-bold ${rifleAmmo < 20 ? 'text-red-500 animate-pulse' : 'text-orange-400'}`}>
-                  {rifleAmmo}
-                </span>
-              </div>
-              <div className="flex justify-between items-center w-44 gap-4">
-                <span className="text-sm text-orange-400/70 flex items-center gap-1">
-                  <Users size={14} />
-                  {t('soldiersKilled')}
-                </span>
-                <span className="text-xl font-bold text-orange-400">
-                  {soldiersDestroyed} / {soldiers.length}
-                </span>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
     </div>
   );
 }

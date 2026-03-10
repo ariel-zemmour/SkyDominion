@@ -6,7 +6,6 @@ import { useGameStore, JETS } from '../store';
 
 import { audioSynth } from '../audio';
 import { getTerrainHeight } from '../utils/terrain';
-import { useMobileStore } from '../hooks/useMobileControls';
 
 const MAX_SPEED = 800;
 const MIN_SPEED = 150;
@@ -54,18 +53,10 @@ export function Player() {
   const lastFired = useRef(0);
   const lastMissile = useRef(0);
   const fireProjectile = useGameStore(state => state.fireProjectile);
-  const spawnParticle = useGameStore(state => state.spawnParticle);
   const bullets = useGameStore(state => state.bullets);
   const homingMissiles = useGameStore(state => state.homingMissiles);
   const groundMissiles = useGameStore(state => state.groundMissiles);
-  const setIsEjected = useGameStore(state => state.setIsEjected);
-  const isEjected = useGameStore(state => state.isEjected);
-  const jetStatus = useGameStore(state => state.jetStatus);
-  const setJetStatus = useGameStore(state => state.setJetStatus);
   const lockedTargetId = useGameStore(state => state.lockedTargetId);
-  const fuel = useGameStore(state => state.fuel);
-  const setFuel = useGameStore(state => state.setFuel);
-  const setRefueling = useGameStore(state => state.setRefueling);
 
   const toggleCameraMode = useGameStore(state => state.toggleCameraMode);
   const lastCameraToggle = useRef(0);
@@ -86,29 +77,7 @@ export function Player() {
   useFrame((state, delta) => {
     if (gameState !== 'playing' || !group.current) return;
 
-    if (isEjected) {
-        // Ejected pilot camera handling is in CameraController, but we stop control here
-        return;
-    }
-
-    const keys = get();
-    const mobile = useMobileStore.getState();
-
-    // Merge keyboard + mobile inputs
-    const forward = keys.forward || mobile.moveY > 0.3;
-    const backward = keys.backward || mobile.moveY < -0.3;
-    const yawLeft = keys.yawLeft || mobile.moveX < -0.3;
-    const yawRight = keys.yawRight || mobile.moveX > 0.3;
-    const pitchUp = keys.pitchUp || mobile.aimY > 0.3 || (mobile.gyroEnabled && mobile.gyroPitch > 0.15);
-    const pitchDown = keys.pitchDown || mobile.aimY < -0.3 || (mobile.gyroEnabled && mobile.gyroPitch < -0.15);
-    const rollLeft = keys.rollLeft || mobile.aimX < -0.3 || (mobile.gyroEnabled && mobile.gyroRoll < -0.15);
-    const rollRight = keys.rollRight || mobile.aimX > 0.3 || (mobile.gyroEnabled && mobile.gyroRoll > 0.15);
-    const shift = keys.shift || mobile.shift;
-    const camera = keys.camera || mobile.camera;
-    const fireBullets = keys.fireBullets || mobile.fireBullets;
-    const fireHoming = keys.fireHoming || mobile.fireHoming;
-    const fireGround = keys.fireGround || mobile.fireGround;
-    const eject = keys.eject || mobile.eject;
+    const { forward, backward, left, right, shift, camera, fireBullets, fireHoming, fireGround } = get();
 
     if (camera && state.clock.elapsedTime - lastCameraToggle.current > 0.5) {
       lastCameraToggle.current = state.clock.elapsedTime;
@@ -119,17 +88,14 @@ export function Player() {
     const fireRate = 0.1 / activeJet.weapons;
     if (fireBullets && state.clock.elapsedTime - lastFired.current > fireRate && bullets > 0) {
       lastFired.current = state.clock.elapsedTime;
-      setPlayerStats({ 
-        bullets: bullets - 1,
-        shotsFired: useGameStore.getState().shotsFired + 1
-      });
+      setPlayerStats({ bullets: bullets - 1 });
       audioSynth.playShoot();
       
       const direction = new THREE.Vector3(0, 0, -1).applyQuaternion(group.current.quaternion);
       const projVel = direction.clone().multiplyScalar(2000).add(playerVelocity);
       
       fireProjectile({
-        position: group.current.position.clone().add(direction.clone().multiplyScalar(activeJet.length * 2)),
+        position: group.current.position.clone().add(direction.clone().multiplyScalar(10)),
         velocity: projVel,
         type: 'bullet',
         owner: 'player',
@@ -140,17 +106,14 @@ export function Player() {
     // Homing Missiles
     if (fireHoming && state.clock.elapsedTime - lastMissile.current > 1.0 && homingMissiles > 0) {
       lastMissile.current = state.clock.elapsedTime;
-      setPlayerStats({ 
-        homingMissiles: homingMissiles - 1,
-        shotsFired: useGameStore.getState().shotsFired + 1
-      });
+      setPlayerStats({ homingMissiles: homingMissiles - 1 });
       audioSynth.playMissile();
       
       const direction = new THREE.Vector3(0, 0, -1).applyQuaternion(group.current.quaternion);
       const projVel = direction.clone().multiplyScalar(1200).add(playerVelocity);
       
       fireProjectile({
-        position: group.current.position.clone().add(direction.clone().multiplyScalar(activeJet.length * 2)),
+        position: group.current.position.clone().add(direction.clone().multiplyScalar(10)),
         velocity: projVel,
         type: 'missile',
         owner: 'player',
@@ -162,55 +125,19 @@ export function Player() {
     // Ground Missiles
     if (fireGround && state.clock.elapsedTime - lastMissile.current > 1.0 && groundMissiles > 0) {
       lastMissile.current = state.clock.elapsedTime;
-      setPlayerStats({ 
-        groundMissiles: groundMissiles - 1,
-        shotsFired: useGameStore.getState().shotsFired + 1
-      });
+      setPlayerStats({ groundMissiles: groundMissiles - 1 });
       audioSynth.playMissile();
       
       const direction = new THREE.Vector3(0, 0, -1).applyQuaternion(group.current.quaternion);
       const projVel = direction.clone().multiplyScalar(1000).add(playerVelocity);
       
       fireProjectile({
-        position: group.current.position.clone().add(direction.clone().multiplyScalar(activeJet.length * 2)),
+        position: group.current.position.clone().add(direction.clone().multiplyScalar(10)),
         velocity: projVel,
         type: 'ground-missile',
         owner: 'player',
         createdAt: state.clock.elapsedTime
       });
-    }
-
-    // Fuel consumption
-    const fuelRate = (speed.current / 1000) * (shift ? 3 : 1) * delta;
-    setFuel(fuel - fuelRate);
-
-    if (fuel <= 0) {
-        speed.current = Math.max(speed.current - 100 * delta, 0); // Flame out
-    }
-
-    // Refueling logic (check for tanker - placeholder for now, just check a high altitude point)
-    const tankerPos = new THREE.Vector3(0, 5000, 0); // Tanker at 5000ft over center
-    if (group.current.position.distanceTo(tankerPos) < 200) {
-        setFuel(fuel + 5 * delta);
-        setRefueling(true);
-    } else {
-        setRefueling(false);
-    }
-
-    // Ejection
-    if (eject && !isEjected) {
-        setIsEjected(true);
-        setJetStatus('crashing');
-        // Launch pilot upward from jet with ejection seat impulse
-        useGameStore.setState({ 
-          pilotPos: group.current.position.clone().add(new THREE.Vector3(0, 5, 0)),
-          pilotVelocityY: 40, // Strong upward ejection impulse
-          ejectionTime: state.clock.elapsedTime,
-          parachuteDeployed: false,
-          isOnGround: false,
-        });
-        audioSynth.playExplosion();
-        audioSynth.stopEngine();
     }
 
     // Throttle
@@ -224,25 +151,10 @@ export function Player() {
     
     audioSynth.setEngineSpeed((speed.current - MIN_SPEED) / (activeJet.speed * AFTERBURNER_MULTIPLIER - MIN_SPEED));
 
-    // Rotation — blend keyboard boolean + mobile analog
-    let pitchInput = (pitchUp ? 1 : 0) - (pitchDown ? 1 : 0);
-    let rollInput = (rollRight ? 1 : 0) - (rollLeft ? 1 : 0);
-    let yawInput = (yawRight ? 1 : 0) - (yawLeft ? 1 : 0);
-
-    // On mobile, use analog values for smoother control
-    if (mobile.isMobile) {
-      // Right joystick analog
-      if (Math.abs(mobile.aimY) > 0.05) pitchInput = mobile.aimY;
-      if (Math.abs(mobile.aimX) > 0.05) rollInput = mobile.aimX;
-      // Left joystick analog for yaw
-      if (Math.abs(mobile.moveX) > 0.05) yawInput = mobile.moveX;
-
-      // Blend gyroscope on top
-      if (mobile.gyroEnabled) {
-        pitchInput = Math.max(-1, Math.min(1, pitchInput + mobile.gyroPitch * 0.7));
-        rollInput = Math.max(-1, Math.min(1, rollInput + mobile.gyroRoll * 0.7));
-      }
-    }
+    // Rotation
+    const pitchInput = (get().pitchUp ? 1 : 0) - (get().pitchDown ? 1 : 0);
+    const rollInput = (get().rollRight ? 1 : 0) - (get().rollLeft ? 1 : 0);
+    const yawInput = (get().yawRight ? 1 : 0) - (get().yawLeft ? 1 : 0);
 
     pitch.current = THREE.MathUtils.lerp(pitch.current, pitchInput * TURN_SPEED, delta * 5);
     roll.current = THREE.MathUtils.lerp(roll.current, rollInput * ROLL_SPEED, delta * 5);
@@ -274,9 +186,7 @@ export function Player() {
         const dy = group.current.position.y - building.position.y;
         
         // Check if within building bounds (approximate with cylinder/box)
-        const collisionWidth = activeJet.wingSpan * 2;
-        const collisionHeight = activeJet.length * 4;
-        if (Math.abs(dx) < collisionWidth && Math.abs(dz) < collisionWidth && dy > -collisionHeight && dy < collisionHeight) {
+        if (Math.abs(dx) < 30 && Math.abs(dz) < 30 && dy > -50 && dy < 60) {
           hasCollided = true;
           break;
         }
@@ -298,178 +208,66 @@ export function Player() {
     // Update store
     playerPos.copy(group.current.position);
     playerRot.copy(group.current.quaternion);
-
-    // Update UI stats
+    
+    // Update UI stats (throttled slightly by zustand if needed, but we'll just set it)
     if (state.clock.elapsedTime % 0.1 < delta) {
       setPlayerStats({
         speed: speed.current,
         altitude: group.current.position.y,
       });
     }
-  });
 
-  useFrame((state, delta) => {
-    if (jetStatus === 'crashing' && group.current) {
-        // Crashing physics
-        playerVelocity.y -= 30 * delta; // Gravity
-        group.current.position.addScaledVector(playerVelocity, delta);
-        group.current.rotateX(0.05 * delta); // Slow tumble
-        group.current.rotateZ(0.1 * delta);
-
-        if (state.clock.elapsedTime % 0.05 < delta) {
-            spawnParticle({
-                position: group.current.position.clone(),
-                type: 'smoke',
-                createdAt: state.clock.elapsedTime,
-                duration: 1.5
-            });
-        }
-
-        const terrainHeight = getTerrainHeight(group.current.position.x, group.current.position.z);
-        if (group.current.position.y <= terrainHeight + 2) {
-            spawnParticle({
-                position: group.current.position.clone(),
-                type: 'explosion',
-                createdAt: state.clock.elapsedTime,
-                duration: 3
-            });
-            audioSynth.playExplosion();
-            setJetStatus('hidden');
-        }
+    // Animate control surfaces
+    if (leftAileron.current && rightAileron.current) {
+      leftAileron.current.rotation.x = rollInput * 0.5;
+      rightAileron.current.rotation.x = -rollInput * 0.5;
+    }
+    if (elevator.current) {
+      elevator.current.rotation.x = pitchInput * 0.5;
+    }
+    if (rudder.current) {
+      rudder.current.rotation.y = yawInput * 0.5;
+    }
+    
+    // Afterburner effect
+    if (afterburnerGlow.current) {
+      afterburnerGlow.current.scale.y = shift ? 2 + Math.random() * 0.5 : 1 + Math.random() * 0.2;
+      (afterburnerGlow.current.material as THREE.MeshBasicMaterial).opacity = shift ? 0.8 : 0.4;
     }
   });
 
-  if (jetStatus === 'hidden') return null;
-
   return (
     <group ref={group} scale={4.0}>
-      {/* Cockpit Interior - Only rendered when in cockpit view */}
-      {useGameStore.getState().cameraMode === 'cockpit' && (
-        <group position={[0, 0.2, -activeJet.length * 0.1]}>
-          {/* Dashboard */}
-          <mesh position={[0, -0.2, -0.6]} rotation={[-Math.PI / 4, 0, 0]}>
-            <boxGeometry args={[1.2, 0.8, 0.1]} />
-            <meshStandardMaterial color="#1a1a1a" metalness={0.8} roughness={0.2} />
-          </mesh>
-          
-          {/* Instruments / Screens with glowing effect */}
-          <mesh position={[0, -0.15, -0.54]} rotation={[-Math.PI / 4, 0, 0]}>
-            <planeGeometry args={[1.0, 0.6]} />
-            <meshBasicMaterial color="#001100" />
-          </mesh>
-          <mesh position={[0, -0.1, -0.53]} rotation={[-Math.PI / 4, 0, 0]}>
-            <planeGeometry args={[0.8, 0.4]} />
-            <meshBasicMaterial color="#00ff00" transparent opacity={0.3} />
-          </mesh>
-          
-          {/* HUD Frame */}
-          <group position={[0, 0.3, -0.6]}>
-            <mesh position={[0, 0, 0]} rotation={[0.4, 0, 0]}>
-              <planeGeometry args={[0.6, 0.4]} />
-              <meshBasicMaterial color="#00ff00" transparent opacity={0.15} blending={THREE.AdditiveBlending} side={THREE.DoubleSide} />
-            </mesh>
-            <mesh position={[0, 0, 0]} rotation={[0.4, 0, 0]}>
-               <edgesGeometry args={[new THREE.PlaneGeometry(0.6, 0.4)]} />
-               <lineBasicMaterial color="#00ff00" transparent opacity={0.4} />
-            </mesh>
-          </group>
-          
-          {/* Pilot Seat */}
-          <mesh position={[0, -0.5, 0.4]}>
-            <boxGeometry args={[0.8, 1.2, 0.6]} />
-            <meshStandardMaterial color="#222" />
-          </mesh>
-
-          {/* Controls / Flight Stick */}
-          <group position={[0, -0.3, -0.2]}>
-             <mesh rotation={[0.4, 0, 0]}>
-               <cylinderGeometry args={[0.03, 0.03, 0.6]} />
-               <meshStandardMaterial color="#111" />
-             </mesh>
-             <mesh position={[0, 0.3, 0.05]}>
-               <sphereGeometry args={[0.06]} />
-               <meshStandardMaterial color="#333" />
-             </mesh>
-          </group>
-        </group>
-      )}
-
-      <group visible={useGameStore.getState().cameraMode !== 'cockpit' || true}>
+      <group>
         {/* Fuselage */}
         <mesh rotation={[Math.PI / 2, 0, 0]} castShadow receiveShadow>
-          <cylinderGeometry args={[activeJet.id === 'bomber' ? 0.6 : 0.3, 0.5, activeJet.length, 16]} />
+          <cylinderGeometry args={[0.3, 0.5, activeJet.length, 16]} />
           <meshStandardMaterial color={activeJet.color} roughness={0.2} metalness={0.9} />
         </mesh>
 
-        {/* Air Intake - specialized for jet types */}
-        {activeJet.id === 'bomber' ? (
-          <>
-            <mesh position={[0.7, 0, activeJet.length * 0.3]} rotation={[Math.PI / 2, 0, 0]}>
-              <cylinderGeometry args={[0.4, 0.4, 1.2, 16]} />
-              <meshStandardMaterial color="#202020" />
-            </mesh>
-            <mesh position={[-0.7, 0, activeJet.length * 0.3]} rotation={[Math.PI / 2, 0, 0]}>
-              <cylinderGeometry args={[0.4, 0.4, 1.2, 16]} />
-              <meshStandardMaterial color="#202020" />
-            </mesh>
-          </>
-        ) : activeJet.id === 'stealth' ? (
-          <mesh position={[0, -0.2, -activeJet.length * 0.2]} castShadow receiveShadow>
-            <boxGeometry args={[1.2, 0.4, 1.5]} />
-            <meshStandardMaterial color="#101010" />
-          </mesh>
-        ) : (
-          <mesh position={[0, -0.3, -activeJet.length * 0.1]} castShadow receiveShadow>
-            <boxGeometry args={[0.8, 0.6, 1.2]} />
-            <meshStandardMaterial color="#202020" roughness={0.3} metalness={0.7} />
-          </mesh>
-        )}
-
-        {/* Bubble Canopy */}
-        <mesh position={[0, activeJet.id === 'ww2' ? 0.5 : 0.4, -activeJet.length * 0.1]} castShadow receiveShadow>
-          <sphereGeometry args={[0.35, 16, 16, 0, Math.PI * 2, 0, Math.PI / 1.5]} />
-          <meshStandardMaterial 
-            color={activeJet.id === 'stealth' ? "#000" : "#111122"} 
-            roughness={0.1} 
-            metalness={0.5} 
-            transparent 
-            opacity={useGameStore.getState().cameraMode === 'cockpit' ? 0.2 : 0.8} 
-            side={THREE.DoubleSide}
-          />
+        {/* Air Intake */}
+        <mesh position={[0, -0.3, -activeJet.length * 0.1]} castShadow receiveShadow>
+          <boxGeometry args={[0.8, 0.6, 1.2]} />
+          <meshStandardMaterial color="#202020" roughness={0.3} metalness={0.7} />
         </mesh>
 
-        {/* Main Wings */}
+        {/* Bubble Canopy */}
+        <mesh position={[0, 0.4, -activeJet.length * 0.1]} castShadow receiveShadow>
+          <sphereGeometry args={[0.35, 16, 16, 0, Math.PI * 2, 0, Math.PI / 1.5]} />
+          <meshStandardMaterial color="#111122" roughness={0.1} metalness={0.5} transparent opacity={0.8} />
+        </mesh>
+
+        {/* Main Wings (Swept) */}
         <mesh position={[0, 0, activeJet.length * 0.05]} rotation={[0, 0, 0]} castShadow receiveShadow>
           <boxGeometry args={[activeJet.wingSpan, 0.05, 1.5]} />
           <meshStandardMaterial color={activeJet.color} roughness={0.3} metalness={0.8} />
         </mesh>
-        
-        {/* Additional wing parts for specific jets */}
-        {activeJet.id === 'tomcat' && (
-          <mesh position={[0, 0, activeJet.length * 0.05]} rotation={[0, 0, 0]}>
-             <boxGeometry args={[activeJet.wingSpan * 0.8, 0.04, 1.2]} />
-             <meshStandardMaterial color={activeJet.color} />
-          </mesh>
-        )}
 
-        {/* Tail Fins */}
-        {activeJet.id === 'advanced' || activeJet.id === 'stealth' || activeJet.id === 'viper' ? (
-          <>
-            <mesh position={[0.5, 0.8, activeJet.length * 0.4]} rotation={[0, 0, 0.3]} castShadow receiveShadow>
-              <boxGeometry args={[0.1, 1.5, 1.2]} />
-              <meshStandardMaterial color={activeJet.color} />
-            </mesh>
-            <mesh position={[-0.5, 0.8, activeJet.length * 0.4]} rotation={[0, 0, -0.3]} castShadow receiveShadow>
-              <boxGeometry args={[0.1, 1.5, 1.2]} />
-              <meshStandardMaterial color={activeJet.color} />
-            </mesh>
-          </>
-        ) : (
-          <mesh position={[0, 1.0, activeJet.length * 0.4]} rotation={[0, 0, 0.1]} castShadow receiveShadow>
-            <boxGeometry args={[0.1, 1.8, 1.2]} />
-            <meshStandardMaterial color={activeJet.color} roughness={0.3} metalness={0.8} />
-          </mesh>
-        )}
+        {/* Tail Fin */}
+        <mesh position={[0, 1.0, activeJet.length * 0.4]} rotation={[0, 0, 0.1]} castShadow receiveShadow>
+          <boxGeometry args={[0.1, 1.8, 1.2]} />
+          <meshStandardMaterial color={activeJet.color} roughness={0.3} metalness={0.8} />
+        </mesh>
 
         {/* Horizontal Stabilizers */}
         <mesh position={[0, 0.2, activeJet.length * 0.45]} castShadow receiveShadow>
@@ -477,24 +275,11 @@ export function Player() {
           <meshStandardMaterial color={activeJet.color} roughness={0.3} metalness={0.8} />
         </mesh>
 
-        {/* Engine Exhausts */}
-        {activeJet.id === 'advanced' || activeJet.id === 'interceptor' || activeJet.id === 'tomcat' || activeJet.id === 'eagle' ? (
-          <>
-            <mesh position={[0.3, 0, activeJet.length * 0.5]} rotation={[Math.PI / 2, 0, 0]} castShadow receiveShadow>
-              <cylinderGeometry args={[0.2, 0.25, 0.6, 16]} />
-              <meshStandardMaterial color="#404040" />
-            </mesh>
-            <mesh position={[-0.3, 0, activeJet.length * 0.5]} rotation={[Math.PI / 2, 0, 0]} castShadow receiveShadow>
-              <cylinderGeometry args={[0.2, 0.25, 0.6, 16]} />
-              <meshStandardMaterial color="#404040" />
-            </mesh>
-          </>
-        ) : (
-          <mesh position={[0, 0, activeJet.length * 0.5]} rotation={[Math.PI / 2, 0, 0]} castShadow receiveShadow>
-            <cylinderGeometry args={[0.25, 0.35, 0.6, 16]} />
-            <meshStandardMaterial color="#404040" roughness={0.1} metalness={0.9} />
-          </mesh>
-        )}
+        {/* Engine Exhaust */}
+        <mesh position={[0, 0, activeJet.length * 0.5]} rotation={[Math.PI / 2, 0, 0]} castShadow receiveShadow>
+          <cylinderGeometry args={[0.25, 0.35, 0.6, 16]} />
+          <meshStandardMaterial color="#404040" roughness={0.1} metalness={0.9} />
+        </mesh>
 
         {/* Engine glow */}
         <mesh ref={afterburnerGlow} position={[0, 0, activeJet.length * 0.5 + 0.3]} rotation={[Math.PI / 2, 0, 0]}>

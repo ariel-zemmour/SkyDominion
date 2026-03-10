@@ -45,22 +45,16 @@ function Missile({ proj }: { proj: Projectile }) {
     if (useGameStore.getState().gameState !== 'playing' || !group.current) return;
     
     // Homing logic
-    let targetPos: THREE.Vector3 | null = null;
-    if (proj.owner === 'player' && proj.targetId) {
+    if (proj.targetId) {
       const target = enemies.find(e => e.id === proj.targetId);
-      if (target) targetPos = target.position;
-    } else if (proj.owner === 'enemy') {
-      const playerPos = useGameStore.getState().playerPos;
-      targetPos = playerPos;
-    }
-
-    if (targetPos && group.current) {
-        const directionToTarget = new THREE.Vector3().subVectors(targetPos, group.current.position).normalize();
+      if (target) {
+        const directionToTarget = new THREE.Vector3().subVectors(target.position, group.current.position).normalize();
         const targetQuaternion = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, -1), directionToTarget);
         group.current.quaternion.slerp(targetQuaternion, delta * MISSILE_TURN_SPEED);
         
         // Update velocity based on new rotation
         proj.velocity.copy(new THREE.Vector3(0, 0, -1).applyQuaternion(group.current.quaternion)).multiplyScalar(MISSILE_SPEED);
+      }
     }
     
     // Move missile

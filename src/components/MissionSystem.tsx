@@ -8,7 +8,6 @@ export function MissionSystem() {
   const mission = useGameStore(state => state.mission);
   const setMission = useGameStore(state => state.setMission);
   const setGameState = useGameStore(state => state.setGameState);
-  const calculateCompletion = useGameStore(state => state.calculateCompletion);
   const language = useGameStore(state => state.language);
   const [hasSpawned, setHasSpawned] = useState(false);
 
@@ -25,14 +24,12 @@ export function MissionSystem() {
     }
     
     if (hasSpawned && enemies.length === 0 && !mission.completed) {
-      calculateCompletion();
       setMission({ objective: t('missionComplete'), completed: true });
       const timeout = setTimeout(() => {
         // Only go to menu if the mission is still marked as completed
         // (i.e., we haven't restarted the game)
         const currentState = useGameStore.getState();
         if (currentState.mission.completed && currentState.gameState === 'playing') {
-          calculateCompletion(); // Calculate final percentage
           setGameState('menu');
           // Reset mission state for next time
           setMission({ objective: t('browserSimulator'), completed: false });
@@ -47,11 +44,8 @@ export function MissionSystem() {
 
   if (mission.completed) {
     return (
-      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none gap-4">
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
         <div className="text-6xl font-bold text-green-500 animate-pulse">{t('missionComplete')}</div>
-        <div className="text-4xl font-mono text-green-400">
-          {t('missionCompletion')}: {mission.completionPercentage}%
-        </div>
       </div>
     );
   }
