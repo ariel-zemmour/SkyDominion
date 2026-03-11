@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useGameStore } from '../store';
 import { audioSynth } from '../audio';
+import { getTerrainHeight } from '../utils/terrain';
 
 export function GameLogic() {
   const gameState = useGameStore(state => state.gameState);
