@@ -48,7 +48,7 @@ export function GameLogic() {
   // Spawning logic
   useEffect(() => {
     if (gameState !== 'playing') return;
-    
+
     // Initialize buildings
     if (buildings.length === 0) {
       const newBuildings = [];
@@ -139,14 +139,14 @@ export function GameLogic() {
             });
             removeEnemy(enemy.id);
             const currentTrophies = useGameStore.getState().trophies;
-            setPlayerStats({ 
+            setPlayerStats({
               score: score + 100,
-              trophies: currentTrophies + 100 
+              trophies: currentTrophies + 100
             });
             saveProgress();
           }
         });
-        
+
         // Check building collision
         if (proj.type === 'ground-missile' || proj.type === 'missile' || proj.type === 'bullet') {
           buildings.forEach(building => {
@@ -181,7 +181,7 @@ export function GameLogic() {
     });
 
     // Check player vs ground
-    if (playerPos.y < 0) {
+    if (playerPos.y < 0 && !useGameStore.getState().isEjected) {
       setGameState('gameover');
       audioSynth.stopEngine();
       audioSynth.playExplosion();
@@ -205,6 +205,96 @@ export function GameLogic() {
       });
     }
   });
+
+  // ── Ejected Pilot Physics ──────────────────────────────────
+  useFrame((state, delta) => {
+    if (gameState !== 'playing') return;
+    const store = useGameStore.getState();
+    if (!store.isEjected) return;
+    // Skip pilot physics during helicopter transport and repair
+    if (['lifting', 'toHangar', 'landing', 'repairing', 'repaired'].includes(store.rescueState)) return;
+
+    const pilotPos = store.pilotPos.clone();
+    let velY = store.pilotVelocityY;
+
+    // Parachute deployment — after 1.5 seconds of free fall
+    if (!store.parachuteDeployed && (state.clock.elapsedTime - store.ejectionTime) > 1.5) {
+      useGameStore.setState({ parachuteDeployed: true });
+    }
+
+    // Apply gravity
+    const gravity = store.parachuteDeployed ? -5 : -20;
+    velY += gravity * delta;
+
+    // Terminal velocity with parachute
+    if (store.parachuteDeployed && velY < -4) {
+      velY = -4;
+    }
+
+    pilotPos.y += velY * delta;
+
+    // Terrain landing check
+    const terrainHeight = getTerrainHeight(pilotPos.x, pilotPos.z);
+    if (pilotPos.y <= terrainHeight + 1.8) {
+      pilotPos.y = terrainHeight + 1.8;
+      velY = 0;
+      if (!store.isOnGround) {
+        useGameStore.setState({ isOnGround: true });
+      }
+    }
+
+    useGameStore.setState({
+      pilotPos,
+      pilotVelocityY: velY,
+    });
+
+    // Ground movement (WASD) and mouse look
+    if (store.isOnGround && store.rescueState === 'none') {
+      // Mouse look
+      const handleMouseMove = (e: MouseEvent) => {
+        const s = useGameStore.getState();
+        useGameStore.setState({
+          pilotYaw: s.pilotYaw + e.movementX * 0.003,
+          pilotPitch: Math.max(-Math.PI / 3, Math.min(Math.PI / 3, s.pilotPitch - e.movementY * 0.003)),
+        });
+      };
+      // Only add once (check if already locked)
+      if (document.pointerLockElement === null) {
+        const canvas = document.querySelector('canvas');
+        if (canvas) {
+          canvas.requestPointerLock?.();
+          document.addEventListener('mousemove', handleMouseMove);
+          // Store cleanup ref
+          (window as any).__pilotMouseHandler = handleMouseMove;
+        }
+      }
+    }
+  });
+
+  // ── SOS / Rescue Calling (R key while on ground) ───────────
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const store = useGameStore.getState();
+      if (store.gameState !== 'playing') return;
+
+      if (e.code === store.keyMap.callRescue && store.isOnGround && !store.isRescueCalled && store.rescueState === 'none') {
+        useGameStore.setState({
+          isRescueCalled: true,
+          sosFired: true,
+          rescueState: 'incoming',
+        });
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      // Cleanup mouse handler
+      if ((window as any).__pilotMouseHandler) {
+        document.removeEventListener('mousemove', (window as any).__pilotMouseHandler);
+        document.exitPointerLock?.();
+      }
+    };
+  }, []);
 
   return null;
 }

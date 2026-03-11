@@ -14,6 +14,7 @@ import { MissionSystem } from './MissionSystem';
 import { useGameStore } from '../store';
 
 import { GameLogic } from './GameLogic';
+import { RescueHelicopter } from './RescueHelicopter';
 
 export function Game() {
   const gameState = useGameStore(state => state.gameState);
@@ -36,6 +37,8 @@ export function Game() {
     { name: 'fireHoming', keys: [keyMap.fireHoming] },
     { name: 'fireGround', keys: [keyMap.fireGround] },
     { name: 'camera', keys: [keyMap.camera] },
+    { name: 'eject', keys: [keyMap.eject] },
+    { name: 'callRescue', keys: [keyMap.callRescue] },
   ];
 
   useEffect(() => {
@@ -67,6 +70,7 @@ export function Game() {
             <Weapons />
             <Effects />
             <GameLogic />
+            <RescueHelicopter />
           </Suspense>
         </Canvas>
         <HUD />
