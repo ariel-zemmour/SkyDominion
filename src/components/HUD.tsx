@@ -1,6 +1,6 @@
 import React from 'react';
 import { useGameStore } from '../store';
-import { Crosshair, Target, Navigation, AlertTriangle, Pause } from 'lucide-react';
+import { Crosshair, Target, AlertTriangle, Pause } from 'lucide-react';
 import { getTranslation } from '../i18n';
 import { Radar } from './Radar';
 
@@ -36,13 +36,13 @@ export function HUD() {
         </div>
       )}
 
-      {/* Radar */}
-      <Radar />
+      {/* Dynamic Tactical Radar */}
+      <Radar isRTL={isRTL} />
 
       {/* Pause Button */}
       <button 
         onClick={togglePause}
-        className="absolute top-4 right-4 pointer-events-auto bg-black/50 p-2 rounded-full border border-green-500/50 hover:bg-green-500/20"
+        className={`absolute top-4 ${isRTL ? 'left-4' : 'right-4'} pointer-events-auto bg-black/50 p-2 rounded-full border border-green-500/50 hover:bg-green-500/20`}
       >
         <Pause size={24} />
       </button>
@@ -55,15 +55,6 @@ export function HUD() {
             <Target size={64} strokeWidth={1.5} />
           </div>
         )}
-      </div>
-
-      {/* Top Left: Radar/Map placeholder */}
-      <div className={`absolute top-4 ${isRTL ? 'right-4' : 'left-4'} w-48 h-48 border border-green-500/50 rounded-full bg-black/20 backdrop-blur-sm flex items-center justify-center`}>
-        <div className="absolute w-full h-[1px] bg-green-500/30"></div>
-        <div className="absolute h-full w-[1px] bg-green-500/30"></div>
-        <Navigation size={24} className="text-green-400" />
-        {/* Radar sweep animation */}
-        <div className="absolute inset-0 rounded-full border-t-2 border-green-400 animate-spin" style={{ animationDuration: '3s' }}></div>
       </div>
 
       {/* Top Right: Score & Status */}
