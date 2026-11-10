@@ -457,3 +457,4 @@ export function F16Model({ afterburnerGlowRef, isAfterburner }: F16ModelProps) {
     </group>
   );
 }
+
