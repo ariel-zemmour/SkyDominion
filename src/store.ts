@@ -492,7 +492,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 }));
 
 export const JETS: Jet[] = [
-  { id: 'basic', name: 'F-16 Falcon', speed: 800, weapons: 1, armor: 100, cost: 0, color: '#A0A0A0', wingSpan: 6, length: 5 },
+  { id: 'basic', name: 'F-16 Falcon', speed: 800, weapons: 1, armor: 100, cost: 0, color: '#A0A0A0', wingSpan: 2.5, length: 3.76 },
   { id: 'zero', name: 'A6M Zero', speed: 680, weapons: 1.0, armor: 80, cost: 700, color: '#F5F5DC', wingSpan: 6.8, length: 5.3 },
   { id: 'spitfire', name: 'Supermarine Spitfire', speed: 720, weapons: 1.2, armor: 100, cost: 850, color: '#556B2F', wingSpan: 6.2, length: 5.1 },
   { id: 'mustang', name: 'P-51 Mustang', speed: 750, weapons: 1.4, armor: 110, cost: 900, color: '#BDB76B', wingSpan: 6.5, length: 5.2 },

@@ -117,7 +117,7 @@ export function Player() {
       const forwardDir = new THREE.Vector3(0, 0, -1).applyQuaternion(group.current.quaternion);
       const projVel = forwardDir.clone().multiplyScalar(2000).add(playerVelocity);
       const spawnOffset = activeJet.id === 'basic'
-        ? new THREE.Vector3(-1.0, 0.5, -4.5).applyQuaternion(group.current.quaternion)
+        ? new THREE.Vector3(-0.80, 0.48, -3.12).applyQuaternion(group.current.quaternion)
         : forwardDir.clone().multiplyScalar(activeJet.length * 2);
 
       fireProjectile({
